@@ -24,4 +24,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "ScanGuideBall"
 include(":app")
+include(":guideball")
  
