@@ -37,6 +37,8 @@ class AccelOnlyOrientationProvider(
 	private val biasMatrix = FloatArray(16)
 	// 方位角/俯仰角/弧度
 	private val orientationAngles = FloatArray(3)
+	private val noAzimuthAngles = FloatArray(3)
+	private val noAzimuthRotation = FloatArray(16)
 	// 存在加速度数据
 	private var hasGravitySample = false
 	// 存在磁力数据
@@ -112,14 +114,22 @@ class AccelOnlyOrientationProvider(
 
 		val finalRotation = FloatArray(16)
 		Matrix.multiplyMM(finalRotation, 0, rotationMatrix, 0, biasMatrix, 0)
+		SensorManager.getOrientation(finalRotation, noAzimuthAngles)
 
-		val forwardX = -finalRotation[2]
-		val forwardY = -finalRotation[6]
-		val forwardZ = -finalRotation[10]
+		// 方案2：欧拉角分解后清零方位角，再按 Z(0) -> X(pitch) -> Y(roll) 重组。
+		val pitchDeg = Math.toDegrees(noAzimuthAngles[1].toDouble()).toFloat()
+		val rollDeg = Math.toDegrees(noAzimuthAngles[2].toDouble()).toFloat()
+		Matrix.setIdentityM(noAzimuthRotation, 0)
+		Matrix.rotateM(noAzimuthRotation, 0, pitchDeg, 1f, 0f, 0f)
+		Matrix.rotateM(noAzimuthRotation, 0, rollDeg, 0f, 1f, 0f)
 
-		val upX = finalRotation[1]
-		val upY = finalRotation[5]
-		val upZ = finalRotation[9]
+		val forwardX = -noAzimuthRotation[2]
+		val forwardY = -noAzimuthRotation[6]
+		val forwardZ = -noAzimuthRotation[10]
+
+		val upX = noAzimuthRotation[1]
+		val upY = noAzimuthRotation[5]
+		val upZ = noAzimuthRotation[9]
 
 		forwardOut[0] = forwardX
 		forwardOut[1] = forwardY
