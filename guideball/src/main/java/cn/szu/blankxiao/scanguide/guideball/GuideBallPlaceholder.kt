@@ -1,11 +1,14 @@
 package cn.szu.blankxiao.scanguide.guideball
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -26,17 +29,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import cn.szu.blankxiao.scanguide.guideball.view.GuideBallGlView
 import java.util.Locale
 
-/**
- * GuideBall 组件占位符
- *
- * @param showOrientationAngles 是否在左上角叠加显示角度信息（方位角/俯仰角/横滚角）
- * @param azimuthToastThresholdDeg 相对首次采样水平朝向的偏转超过该度数时 Toast 提示；null 表示不提示
- */
 @Composable
 fun GuideBallPlaceholder(
 	modifier: Modifier = Modifier,
 	showOrientationAngles: Boolean = true,
-	azimuthToastThresholdDeg: Float? = 30f
+	azimuthToastThresholdDeg: Float? = 30f,
+	sphereSizeDp: Int = 192,
+	progressContainerSizeDp: Int = 64
 ) {
 	var completeness by remember { mutableFloatStateOf(0f) }
 	var isPaused by remember { mutableStateOf(false) }
@@ -53,17 +52,13 @@ fun GuideBallPlaceholder(
 		azimuthToastThresholdDeg = azimuthToastThresholdDeg
 	)
 
-	Box(modifier = modifier.fillMaxSize()) {
-		AndroidView(
-			factory = { ctx ->
-				GuideBallGlView(
-					context = ctx,
-					onCompletenessChanged = { completeness = it },
-					onPausedChanged = { isPaused = it }
-				).also { glView = it }
-			},
-			modifier = Modifier.fillMaxSize()
-		)
+	Column(
+		modifier = modifier
+			.fillMaxWidth()
+			.wrapContentHeight()
+			.padding(horizontal = 24.dp)
+			.padding(bottom = 24.dp)
+	) {
 		if (showOrientationAngles) {
 			Text(
 				text = String.format(
@@ -74,8 +69,7 @@ fun GuideBallPlaceholder(
 					rollState.floatValue
 				),
 				modifier = Modifier
-					.align(Alignment.TopStart)
-					.padding(8.dp)
+					.padding(bottom = 6.dp)
 					.clip(RoundedCornerShape(6.dp))
 					.background(Color(0x88000000))
 					.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -83,25 +77,53 @@ fun GuideBallPlaceholder(
 				style = MaterialTheme.typography.labelSmall
 			)
 		}
+
 		Box(
 			modifier = Modifier
-				.align(Alignment.BottomCenter)
-				.padding(bottom = 40.dp)
-				.size(72.dp)
-				.clickable { isPaused = glView?.togglePause() ?: isPaused },
-			contentAlignment = Alignment.Center
+				.fillMaxWidth()
+				.wrapContentHeight()
 		) {
-			CircularProgressIndicator(
-				progress = { completeness },
-				modifier = Modifier.size(56.dp),
-				color = if (isPaused) Color(0xFF9AA0A6) else MaterialTheme.colorScheme.primary,
-				trackColor = Color(0x44FFFFFF)
+			AndroidView(
+				factory = { ctx ->
+					GuideBallGlView(
+						context = ctx,
+						onCompletenessChanged = { completeness = it },
+						onPausedChanged = { isPaused = it }
+					).also { glView = it }
+				},
+				modifier = Modifier
+					.align(Alignment.Center)
+					.size(sphereSizeDp.dp)
+					.clip(RoundedCornerShape(24.dp))
+					.border(
+						width = 1.5.dp,
+						color = Color.White,
+						shape = RoundedCornerShape(24.dp)
+					)
 			)
-			Text(
-				text = String.format(Locale.US, "%.0f%%", completeness * 100f),
-				color = Color.White,
-				style = MaterialTheme.typography.labelSmall
-			)
+			Box(
+				modifier = Modifier
+					.align(Alignment.BottomEnd)
+					.padding(end = 6.dp)
+					.size(progressContainerSizeDp.dp)
+					.clickable { isPaused = glView?.togglePause() ?: isPaused },
+				contentAlignment = Alignment.BottomCenter
+			) {
+				CircularProgressIndicator(
+					progress = { completeness },
+					modifier = Modifier
+						.align(Alignment.BottomCenter)
+						.size((progressContainerSizeDp).dp),
+					color = if (isPaused) Color(0xFF9AA0A6) else MaterialTheme.colorScheme.primary,
+					trackColor = Color(0x44FFFFFF)
+				)
+				Text(
+					text = String.format(Locale.US, "%.0f%%", completeness * 100f),
+					modifier = Modifier.align(Alignment.Center),
+					color = Color.White,
+					style = MaterialTheme.typography.labelSmall
+				)
+			}
 		}
 	}
 }
@@ -111,3 +133,4 @@ fun GuideBallPlaceholder(
 private fun GuideBallPlaceholderPreview() {
 	GuideBallPlaceholder()
 }
+

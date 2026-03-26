@@ -89,7 +89,7 @@ class GuideBallCamera(val screenRatio: Float) {
 	companion object {
 		private const val Z_NEAR = 0.1f
 		private const val Z_FAR = 100.0f
-		const val DEFAULT_FOV = 60.0f      // 增大视场角，球体显示更小
+		const val DEFAULT_FOV = 20.0f      // 适度减小视场角，提升球体有效显示占比
 		const val MIN_FOV = 30.0f
 		const val MAX_FOV = 120.0f
 		const val DEFAULT_ORBIT_RADIUS = 6.0f  // 增大轨道半径，相机离球体更远

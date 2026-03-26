@@ -20,6 +20,6 @@ class StaticCameraViewProvider : CameraViewProvider {
 	}
 
 	companion object {
-		const val DEFAULT_ORBIT_RADIUS = 6.8f
+		const val DEFAULT_ORBIT_RADIUS = 4.8f
 	}
 }

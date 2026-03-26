@@ -35,7 +35,8 @@ object EglConfig {
      * 包括清屏颜色、深度测试、面剔除等固定配置
      */
     fun initGLState() {
-        GLES20.glClearColor(0.12f, 0.12f, 0.14f, 1f)
+        // 透明背景，便于叠加到相机预览之上
+        GLES20.glClearColor(0f, 0f, 0f, 0f)
         GLES20.glEnable(GLES20.GL_DEPTH_TEST)
         GLES20.glDepthFunc(GLES20.GL_LEQUAL)
         GLES20.glEnable(GLES20.GL_CULL_FACE)
