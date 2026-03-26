@@ -22,15 +22,17 @@ class GuideBallRotationController(
 	 */
 	fun updateCameraView(camera: GuideBallCamera) {
 		// 获取传感器数据
+		// eye: 相机位置（球外侧，由 forward 反向推导）
+		// forward: 从球心向外的方向向量
+		// up: 世界坐标系上方向
 		orientationProvider.getCameraFrame(eye, forward, up)
 
-		// 目标点 = eye + forward * distance
-		val target = FloatArray(3)
-		target[0] = eye[0] + forward[0]
-		target[1] = eye[1] + forward[1]
-		target[2] = eye[2] + forward[2]
+		// 相机应该看向球心 (0,0,0)
+		// 因为 eye 已经在 -forward * radius 的位置
+		// 所以看向球心就是看向原点
+		val target = floatArrayOf(0f, 0f, 0f)
 
-		// 重建视图矩阵
+		// 重建视图矩阵：从 eye 看向球心
 		camera.rebuildViewMatrix(eye, target, up)
 	}
 

@@ -21,6 +21,7 @@ class AccelOnlyOrientationProvider(
 	private val appContext = context.applicationContext
 	private val sensorManager = appContext.getSystemService(Context.SENSOR_SERVICE) as SensorManager
 
+	// 返回沿着x/y/z轴的加速度
 	private val accelerometer: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
 	// 旋转矩阵（传感器回调直接更新，渲染线程直接读取）
@@ -34,6 +35,17 @@ class AccelOnlyOrientationProvider(
 
 	// 是否有有效数据
 	private var hasValidData = false
+
+	// EMA滤波状态（滤波后的重力向量）
+	private var gxFiltered = 0f
+	private var gyFiltered = 0f
+	private var gzFiltered = 1f  // 默认指向Z轴
+
+	// EMA滤波系数（0.15 = 保留15%新数据，85%历史）
+	private val EMA_ALPHA = 0.15f
+
+	// 死区阈值（约0.5度，归一化向量长度变化）
+	private val DEAD_ZONE_THRESHOLD = 0.01f
 
 	// 档位定义（俯仰角，弧度）：上、上中、水平、下中、下
 	private val PITCH_LEVELS = floatArrayOf(
@@ -75,17 +87,42 @@ class AccelOnlyOrientationProvider(
 	/**
 	 * 核心：传感器回调中直接计算并更新 rotationMatrix
 	 * 参考 MyPanorama 的 GyroOrientationProvider.onSensorChanged
+	 * 
+	 * 改进：EMA低通滤波 + 死区检查，消除传感器噪声导致的抽动
 	 */
 	private fun processSensorData(ax: Float, ay: Float, az: Float) {
 		// 重力向量归一化
 		val gLen = sqrt((ax * ax + ay * ay + az * az).toDouble()).toFloat()
-		val gx = ax / gLen
-		val gy = ay / gLen
-		val gz = az / gLen
+		val gxRaw = ax / gLen
+		val gyRaw = ay / gLen
+		val gzRaw = az / gLen
 
-		// 从重力向量计算旋转矩阵
-		// 重力方向是 -Y，我们需要构建一个从设备坐标系到世界坐标系的旋转
-		computeRotationMatrixFromGravity(gx, gy, gz, rotationMatrix)
+		// EMA低通滤波：平滑重力向量
+		// gxFiltered = α * gxRaw + (1-α) * gxFiltered
+		if (isFirstFrame) {
+			// 第一帧直接赋值，无历史数据
+			gxFiltered = gxRaw
+			gyFiltered = gyRaw
+			gzFiltered = gzRaw
+		} else {
+			gxFiltered = EMA_ALPHA * gxRaw + (1 - EMA_ALPHA) * gxFiltered
+			gyFiltered = EMA_ALPHA * gyRaw + (1 - EMA_ALPHA) * gyFiltered
+			gzFiltered = EMA_ALPHA * gzRaw + (1 - EMA_ALPHA) * gzFiltered
+		}
+
+		// 死区检查：如果变化小于阈值，跳过更新（消除静止时的微抖动）
+		val delta = sqrt(
+			(gxFiltered - gxRaw) * (gxFiltered - gxRaw) +
+			(gyFiltered - gyRaw) * (gyFiltered - gyRaw) +
+			(gzFiltered - gzRaw) * (gzFiltered - gzRaw)
+		)
+		if (!isFirstFrame && delta < DEAD_ZONE_THRESHOLD) {
+			// 变化太小，使用滤波后的值继续，但不重新计算矩阵
+			// 注意：这里仍然使用滤波后的值计算档位
+		} else {
+			// 变化足够大，重新计算旋转矩阵
+			computeRotationMatrixFromGravity(gxFiltered, gyFiltered, gzFiltered, rotationMatrix)
+		}
 
 		// 初始化偏移矩阵（第一帧时将当前姿态设为基准）
 		if (isFirstFrame) {
@@ -94,9 +131,9 @@ class AccelOnlyOrientationProvider(
 			hasValidData = true
 		}
 
-		// 档位逻辑（仅用于触发回调，不影响矩阵计算）
-		val horizontalLen = sqrt((gx * gx + gz * gz).toDouble()).toFloat()
-		val rawPitch = kotlin.math.atan2(-gy, horizontalLen)
+		// 档位逻辑（使用滤波后的值，仅用于触发回调）
+		val horizontalLen = sqrt((gxFiltered * gxFiltered + gzFiltered * gzFiltered).toDouble()).toFloat()
+		val rawPitch = kotlin.math.atan2(-gyFiltered, horizontalLen)
 		val oldLevel = currentLevelIndex
 		updatePitchLevel(rawPitch)
 		if (currentLevelIndex != oldLevel) {
@@ -183,6 +220,10 @@ class AccelOnlyOrientationProvider(
 		sensorManager.unregisterListener(listener)
 		hasValidData = false
 		isFirstFrame = true
+		// 重置滤波状态
+		gxFiltered = 0f
+		gyFiltered = 0f
+		gzFiltered = 1f
 	}
 
 	/**
