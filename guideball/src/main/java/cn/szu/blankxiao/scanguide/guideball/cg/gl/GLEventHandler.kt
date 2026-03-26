@@ -1,4 +1,4 @@
-package cn.szu.blankxiao.scanguide.guideball.gl
+package cn.szu.blankxiao.scanguide.guideball.cg.gl
 
 import java.util.LinkedList
 

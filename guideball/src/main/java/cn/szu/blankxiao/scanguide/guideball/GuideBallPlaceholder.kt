@@ -18,32 +18,28 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import cn.szu.blankxiao.scanguide.guideball.camera.CameraViewProvider
-import cn.szu.blankxiao.scanguide.guideball.camera.SensorCameraViewProvider
 import cn.szu.blankxiao.scanguide.guideball.view.GuideBallGlView
 
 /**
- * Demo：GL 球体 + 底部圆环进度（与 [SphereScanState.completeness] 同源）；
- * 点击圆环区域切换暂停（停止停留累计与生长时间冻结）。
+ * GuideBall 组件占位符
+ * 纯加速度方案，无磁场，无陀螺仪
  *
- * @param cameraViewProvider 为 null 时使用 [SensorCameraViewProvider]；宿主接入请传入 [cn.szu.blankxiao.scanguide.guideball.camera.HostCameraFrameProvider] 并每帧 [HostCameraFrameProvider.setCameraFrame]。
+ * 原理：
+ * - 仅用加速度计检测重力方向
+ * - 视图矩阵由传感器数据实时计算
  */
 @Composable
 fun GuideBallPlaceholder(
-	modifier: Modifier = Modifier,
-	cameraViewProvider: CameraViewProvider? = null
+	modifier: Modifier = Modifier
 ) {
 	val context = LocalContext.current
-	val resolvedProvider = remember(cameraViewProvider) {
-		cameraViewProvider ?: SensorCameraViewProvider(context)
-	}
 	var completeness by remember { mutableFloatStateOf(0f) }
 	var glView by remember { mutableStateOf<GuideBallGlView?>(null) }
 
 	Box(modifier = modifier.fillMaxSize()) {
 		AndroidView(
 			factory = { ctx ->
-				GuideBallGlView(ctx, { completeness = it }, resolvedProvider).also { glView = it }
+				GuideBallGlView(ctx) { completeness = it }.also { glView = it }
 			},
 			modifier = Modifier.fillMaxSize()
 		)

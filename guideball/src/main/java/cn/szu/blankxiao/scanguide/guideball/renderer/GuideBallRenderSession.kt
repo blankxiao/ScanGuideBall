@@ -1,7 +1,7 @@
 package cn.szu.blankxiao.scanguide.guideball.renderer
 
 import android.graphics.SurfaceTexture
-import cn.szu.blankxiao.scanguide.guideball.gl.GLProducerThread
+import cn.szu.blankxiao.scanguide.guideball.cg.gl.GLProducerThread
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**

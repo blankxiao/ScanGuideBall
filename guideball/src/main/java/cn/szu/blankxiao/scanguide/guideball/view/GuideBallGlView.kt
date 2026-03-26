@@ -3,38 +3,38 @@ package cn.szu.blankxiao.scanguide.guideball.view
 import android.content.Context
 import android.view.TextureView
 import android.widget.FrameLayout
-import cn.szu.blankxiao.scanguide.guideball.bridge.OrbitDirectionBridge
-import cn.szu.blankxiao.scanguide.guideball.camera.CameraViewProvider
-import cn.szu.blankxiao.scanguide.guideball.camera.SensorCameraViewProvider
-import cn.szu.blankxiao.scanguide.guideball.domain.SphereScanDwellController
+import cn.szu.blankxiao.scanguide.guideball.camera.AccelOnlyOrientationProvider
+import cn.szu.blankxiao.scanguide.guideball.controller.GuideBallRotationController
 import cn.szu.blankxiao.scanguide.guideball.domain.SphereScanState
 import cn.szu.blankxiao.scanguide.guideball.helper.GuideBallSurfaceTextureCoordinator
 import cn.szu.blankxiao.scanguide.guideball.renderer.GuideBallRenderSession
 import cn.szu.blankxiao.scanguide.guideball.renderer.SphereGuideRenderer
-import cn.szu.blankxiao.scanguide.guideball.sensor.GyroscopeAngularVelocityTracker
 
 /**
- * TextureView + GL；**视角**由 [CameraViewProvider] 提供（默认 [SensorCameraViewProvider] 随设备姿态；
- * 宿主/真实相机请换 [cn.szu.blankxiao.scanguide.guideball.camera.HostCameraFrameProvider]）。
- * 停留打点仍使用陀螺仪角速度（与视角解耦）。
+ * GuideBall GL 视图
+ * 参考 MyPanorama 的架构：
+ * - OrientationProvider 提供传感器数据
+ * - RotationController 管理旋转逻辑
+ * - Renderer 持有 Camera 和 Controller
  */
 class GuideBallGlView(
 	context: Context,
-	onCompletenessChanged: ((Float) -> Unit)? = null,
-	cameraViewProvider: CameraViewProvider = SensorCameraViewProvider(context)
+	onCompletenessChanged: ((Float) -> Unit)? = null
 ) : FrameLayout(context) {
 
 	val scanState: SphereScanState = SphereScanState(onCompletenessChanged)
 
-	val cameraView: CameraViewProvider = cameraViewProvider
+	// 方向提供者（类似 MyPanorama 的 GyroOrientationProvider）
+	private val orientationProvider = AccelOnlyOrientationProvider(context)
 
-	private val directionBridge = OrbitDirectionBridge()
-	private val dwellController = SphereScanDwellController(scanState, directionBridge)
-	private val gyroTracker = GyroscopeAngularVelocityTracker(context) { mag ->
-		dwellController.onAngularSpeed(mag)
+	// 旋转控制器（类似 MyPanorama 的 RotationController）
+	private val rotationController = GuideBallRotationController(orientationProvider)
+
+	// 渲染器（类似 MyPanorama 的 Renderer）
+	private val renderer = SphereGuideRenderer(rotationController).apply {
+		setContext(context)
 	}
 
-	private val renderer = SphereGuideRenderer(cameraViewProvider, scanState, directionBridge)
 	private val renderSession = GuideBallRenderSession(renderer)
 	private val coordinator = GuideBallSurfaceTextureCoordinator(renderSession)
 
@@ -57,14 +57,13 @@ class GuideBallGlView(
 
 	override fun onAttachedToWindow() {
 		super.onAttachedToWindow()
-		(cameraView as? SensorCameraViewProvider)?.onAttachedToWindow()
-		gyroTracker.onAttached()
+		// 启动传感器监听（类似 MyPanorama 的 renderer.onAttached()）
+		rotationController.onAttached()
 	}
 
 	override fun onDetachedFromWindow() {
-		(cameraView as? SensorCameraViewProvider)?.onDetachedFromWindow()
-		gyroTracker.onDetached()
-		dwellController.reset()
+		// 停止传感器监听
+		rotationController.onDetached()
 		renderSession.release()
 		super.onDetachedFromWindow()
 	}

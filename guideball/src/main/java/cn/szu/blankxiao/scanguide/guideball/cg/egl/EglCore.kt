@@ -1,4 +1,4 @@
-package cn.szu.blankxiao.scanguide.guideball.gl
+package cn.szu.blankxiao.scanguide.guideball.cg.egl
 
 import android.graphics.SurfaceTexture
 import android.opengl.EGL14

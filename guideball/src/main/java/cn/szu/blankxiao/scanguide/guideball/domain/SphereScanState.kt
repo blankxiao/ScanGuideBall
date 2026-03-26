@@ -1,95 +1,75 @@
 package cn.szu.blankxiao.scanguide.guideball.domain
 
-import java.util.concurrent.CopyOnWriteArrayList
-import kotlin.math.min
-
 /**
- * 球面采样点与完成度；与 GL、停留逻辑共享，读多写少用 [CopyOnWriteArrayList]。
+ * 球面扫描状态管理
+ * 管理扫描点的收集和完整性计算
  */
 class SphereScanState(
-	private val onCompletenessChanged: ((Float) -> Unit)? = null
+    private val onCompletenessChanged: ((Float) -> Unit)? = null
 ) {
+    // 扫描方向集合 (用Triple存储x,y,z，避免引入新类)
+    private val scannedDirections = mutableSetOf<Triple<Int, Int, Int>>()
 
-	val points: CopyOnWriteArrayList<ScanPoint> = CopyOnWriteArrayList()
+    // 是否暂停扫描
+    private var isPaused = false
 
-	@Volatile
-	var completeness: Float = 0f
-		private set
+    // 当前完整性 (0.0 ~ 1.0)
+    var completeness: Float = 0f
+        private set
 
-	@Volatile
-	var isPaused: Boolean = false
-		private set
+    // 总目标点数（用于计算完整性）
+    private val targetPointCount = 100
 
-	/** 暂停时冻结生长动画的参考时刻（毫秒） */
-	@Volatile
-	var frozenTimeMs: Long? = null
-		private set
+    // 量化精度（用于将浮点方向量化为整数）
+    private val quantizeFactor = 100
 
-	fun effectiveNowMs(): Long =
-		frozenTimeMs ?: System.currentTimeMillis()
+    /**
+     * 添加方向向量作为扫描点
+     */
+    fun addDirection(x: Float, y: Float, z: Float) {
+        if (isPaused) return
 
-	fun togglePause() {
-		if (!isPaused) {
-			isPaused = true
-			frozenTimeMs = System.currentTimeMillis()
-		} else {
-			isPaused = false
-			frozenTimeMs = null
-		}
-	}
+        // 量化为整数存储
+        val key = Triple(
+            (x * quantizeFactor).toInt(),
+            (y * quantizeFactor).toInt(),
+            (z * quantizeFactor).toInt()
+        )
+        scannedDirections.add(key)
+        updateCompleteness()
+    }
 
-	/**
-	 * @return 是否新增成功（去重失败则为 false）
-	 */
-	fun tryAddPoint(direction: FloatArray): Boolean {
-		if (isPaused) return false
-		synchronized(mergeLock) {
-			val nx = direction[0]
-			val ny = direction[1]
-			val nz = direction[2]
-			val len = kotlin.math.sqrt((nx * nx + ny * ny + nz * nz).toDouble()).toFloat().coerceAtLeast(1e-6f)
-			val d0 = nx / len
-			val d1 = ny / len
-			val d2 = nz / len
-			for (p in points) {
-				val dot = d0 * p.dir[0] + d1 * p.dir[1] + d2 * p.dir[2]
-				if (dot >= DEDUP_DOT_THRESHOLD) return false
-			}
-			if (points.size >= MAX_POINTS) {
-				points.removeAt(0)
-			}
-			points.add(ScanPoint(floatArrayOf(d0, d1, d2), System.currentTimeMillis()))
-			completeness = min(1f, completeness + COMPLETENESS_DELTA_PER_POINT)
-			onCompletenessChanged?.invoke(completeness)
-			return true
-		}
-	}
+    /**
+     * 切换暂停状态
+     */
+    fun togglePause() {
+        isPaused = !isPaused
+    }
 
-	fun clearPointsForDebug() {
-		points.clear()
-		completeness = 0f
-		onCompletenessChanged?.invoke(0f)
-	}
+    /**
+     * 重置扫描状态
+     */
+    fun reset() {
+        scannedDirections.clear()
+        updateCompleteness()
+    }
 
-	private val mergeLock = Any()
+    /**
+     * 获取已扫描的点数
+     */
+    fun getScannedCount(): Int = scannedDirections.size
 
-	data class ScanPoint(
-		val dir: FloatArray,
-		val createdAtMs: Long
-	) {
-		override fun equals(other: Any?): Boolean {
-			if (this === other) return true
-			if (javaClass != other?.javaClass) return false
-			other as ScanPoint
-			return createdAtMs == other.createdAtMs && dir.contentEquals(other.dir)
-		}
+    /**
+     * 是否已暂停
+     */
+    fun isPaused(): Boolean = isPaused
 
-		override fun hashCode(): Int = 31 * createdAtMs.hashCode() + dir.contentHashCode()
-	}
+    private fun updateCompleteness() {
+        completeness = (scannedDirections.size.toFloat() / targetPointCount).coerceIn(0f, 1f)
+        onCompletenessChanged?.invoke(completeness)
+    }
 
-	companion object {
-		const val MAX_POINTS = 16
-		private const val DEDUP_DOT_THRESHOLD = 0.94f
-		private const val COMPLETENESS_DELTA_PER_POINT = 0.08f
-	}
+    companion object {
+        private const val TAG = "SphereScanState"
+    }
 }

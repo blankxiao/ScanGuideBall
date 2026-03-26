@@ -1,56 +1,100 @@
 package cn.szu.blankxiao.scanguide.guideball.domain
 
-import android.os.SystemClock
-import cn.szu.blankxiao.scanguide.guideball.bridge.OrbitDirectionBridge
-import kotlin.math.min
-
 /**
- * 角速度低于阈值时累计停留时间，达到 [dwellHoldMs] 后在当前视线方向打点。
+ * 扫描停留控制器
+ * 控制扫描时的停留时间和采样频率
  */
-internal class SphereScanDwellController(
-	private val scanState: SphereScanState,
-	private val directionBridge: OrbitDirectionBridge
+class SphereScanDwellController(
+    private val scanState: SphereScanState
 ) {
+    // 采样间隔 (ms)
+    private val sampleIntervalMs = 100L
 
-	private var lastElapsedMs: Long = SystemClock.elapsedRealtime()
-	private var dwellAccumSec: Float = 0f
-	private val scratchDir = FloatArray(3)
+    // 最后采样时间
+    private var lastSampleTime = 0L
 
-	fun reset() {
-		dwellAccumSec = 0f
-		lastElapsedMs = SystemClock.elapsedRealtime()
-	}
+    // 当前目标方向
+    private var targetX = 0f
+    private var targetY = 0f
+    private var targetZ = 1f
 
-	/**
-	 * @param angularSpeedRadPerSec 陀螺仪角速度模长
-	 */
-	fun onAngularSpeed(angularSpeedRadPerSec: Float) {
-		if (scanState.isPaused) {
-			dwellAccumSec = 0f
-			lastElapsedMs = SystemClock.elapsedRealtime()
-			return
-		}
-		val now = SystemClock.elapsedRealtime()
-		val dtSec = min(0.2f, (now - lastElapsedMs) / 1000f).coerceAtLeast(0f)
-		lastElapsedMs = now
+    // 在目标点的停留时间 (ms)
+    private val dwellTimeMs = 500L
 
-		if (angularSpeedRadPerSec < STILLNESS_THRESHOLD_RAD_PER_SEC) {
-			dwellAccumSec += dtSec
-			if (dwellAccumSec >= dwellHoldMs / 1000f) {
-				directionBridge.copyDirectionInto(scratchDir)
-				scanState.tryAddPoint(scratchDir)
-				dwellAccumSec = 0f
-			}
-		} else {
-			dwellAccumSec = 0f
-		}
-	}
+    // 开始停留的时间
+    private var dwellStartTime = 0L
 
-	companion object {
-		/** 低于此值认为「相对静止」，可调参 */
-		const val STILLNESS_THRESHOLD_RAD_PER_SEC = 0.35f
+    // 是否正在停留
+    private var isDwelling = false
 
-		/** 停留多久触发一次打点（毫秒） */
-		const val dwellHoldMs: Long = 1100L
-	}
+    // 角度阈值（判断是否对准目标）
+    private val angleThreshold = 0.15f  // 约8.6度
+
+    /**
+     * 设置当前目标点
+     */
+    fun setTarget(x: Float, y: Float, z: Float) {
+        targetX = x
+        targetY = y
+        targetZ = z
+        isDwelling = false
+    }
+
+    /**
+     * 更新控制器状态，由渲染循环调用
+     */
+    fun update(currentTimeMs: Long, currentDirection: FloatArray) {
+        if (currentTimeMs - lastSampleTime < sampleIntervalMs) {
+            return
+        }
+        lastSampleTime = currentTimeMs
+
+        val cx = currentDirection[0]
+        val cy = currentDirection[1]
+        val cz = currentDirection[2]
+
+        // 计算与目标的点积（即cos角度）
+        val dot = cx * targetX + cy * targetY + cz * targetZ
+
+        // 检查是否对准目标（点积接近1表示角度很小）
+        if (dot > (1f - angleThreshold)) {
+            if (!isDwelling) {
+                // 开始停留
+                isDwelling = true
+                dwellStartTime = currentTimeMs
+            } else if (currentTimeMs - dwellStartTime >= dwellTimeMs) {
+                // 停留完成，记录扫描点
+                scanState.addDirection(targetX, targetY, targetZ)
+                isDwelling = false
+            }
+        } else {
+            // 偏离目标，取消停留
+            isDwelling = false
+        }
+    }
+
+    /**
+     * 获取当前进度 (0.0 ~ 1.0)
+     */
+    fun getProgress(): Float {
+        if (!isDwelling) return 0f
+        val elapsed = System.currentTimeMillis() - dwellStartTime
+        return (elapsed.toFloat() / dwellTimeMs).coerceIn(0f, 1f)
+    }
+
+    /**
+     * 是否正在停留
+     */
+    fun isDwelling(): Boolean = isDwelling
+
+    /**
+     * 重置控制器
+     */
+    fun reset() {
+        isDwelling = false
+        targetX = 0f
+        targetY = 0f
+        targetZ = 1f
+        lastSampleTime = 0L
+    }
 }

@@ -1,7 +1,8 @@
-package cn.szu.blankxiao.scanguide.guideball.gl
+package cn.szu.blankxiao.scanguide.guideball.cg.gl
 
 import android.graphics.SurfaceTexture
 import android.util.Log
+import cn.szu.blankxiao.scanguide.guideball.cg.egl.EglCore
 import cn.szu.blankxiao.scanguide.guideball.renderer.GuideBallRenderer
 import java.util.concurrent.atomic.AtomicBoolean
 
