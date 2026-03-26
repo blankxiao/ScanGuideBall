@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<string name="guideball_azimuth_exceeds_hint">水平转向过大，请回到起始朝向附近</string>
+	<!-- 兼容旧 ToastOrientationHint 默认文案 id -->
+	<string name="guideball_roll_exceeds_hint">@string/guideball_azimuth_exceeds_hint</string>
+</resources>

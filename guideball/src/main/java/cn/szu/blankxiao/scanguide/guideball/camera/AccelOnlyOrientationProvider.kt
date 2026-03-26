@@ -43,7 +43,6 @@ class AccelOnlyOrientationProvider(
 	private var hasMagSample = false
 
 	private var isFirstFrame = true
-	private var hasValidData = false
 
 	private val PITCH_LEVELS = floatArrayOf(
 		1.0f,
@@ -76,7 +75,6 @@ class AccelOnlyOrientationProvider(
 			isFirstFrame = false
 			// 初始视角
 			Matrix.invertM(biasMatrix, 0, rotationMatrix, 0)
-			hasValidData = true
 		}
 		// rotationMatrix 经过SensorManager.getRotationMatrixFromVector处理 由旋转矢量传感器的向量转换过来
 		// 解析出 方位角/俯仰角/横滚
@@ -101,7 +99,6 @@ class AccelOnlyOrientationProvider(
 
 	fun onDetachedFromWindow() {
 		sensorManager.unregisterListener(listener)
-		hasValidData = false
 		isFirstFrame = true
 		hasGravitySample = false
 		hasMagSample = false
@@ -112,10 +109,6 @@ class AccelOnlyOrientationProvider(
 	 * 光轴 = -Z_device，上方向 = +Y_device。
 	 */
 	override fun getCameraFrame(eyeOut: FloatArray, forwardOut: FloatArray, upOut: FloatArray) {
-		if (!hasValidData) {
-			StaticCameraViewProvider().getCameraFrame(eyeOut, forwardOut, upOut)
-			return
-		}
 
 		val finalRotation = FloatArray(16)
 		Matrix.multiplyMM(finalRotation, 0, rotationMatrix, 0, biasMatrix, 0)
