@@ -36,7 +36,11 @@ class GuideBallGlView(
 	}
 
 	private val renderSession = GuideBallRenderSession(renderer)
-	private val coordinator = GuideBallSurfaceTextureCoordinator(renderSession)
+	private val coordinator = GuideBallSurfaceTextureCoordinator(renderSession) {
+		if (scanState.isPaused()) {
+			renderSession.setRenderingPaused(true)
+		}
+	}
 
 	private val textureView = TextureView(context).apply {
 		isOpaque = false
@@ -53,6 +57,9 @@ class GuideBallGlView(
 
 	fun togglePause() {
 		scanState.togglePause()
+		if (renderSession.isReady()) {
+			renderSession.setRenderingPaused(scanState.isPaused())
+		}
 	}
 
 	override fun onAttachedToWindow() {

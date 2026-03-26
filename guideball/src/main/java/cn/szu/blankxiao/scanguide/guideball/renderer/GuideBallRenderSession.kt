@@ -14,12 +14,13 @@ internal class GuideBallRenderSession(
 	private var initialized = false
 	private lateinit var producerThread: GLProducerThread
 	private val shouldRender = AtomicBoolean(true)
+	private val renderingPaused = AtomicBoolean(false)
 
 	fun isReady(): Boolean = initialized
 
 	fun init(surface: SurfaceTexture, width: Int, height: Int, onReady: () -> Unit) {
 		shouldRender.set(true)
-		producerThread = GLProducerThread(surface, renderer, shouldRender)
+		producerThread = GLProducerThread(surface, renderer, shouldRender, renderingPaused)
 		producerThread.start()
 		post { renderer.onSurfaceChanged(width, height) }
 		initialized = true
@@ -34,6 +35,16 @@ internal class GuideBallRenderSession(
 	fun resize(width: Int, height: Int) {
 		post { renderer.onSurfaceChanged(width, height) }
 	}
+
+	/**
+	 * 暂停/恢复 GL 帧提交与交换。暂停时不再调用 [GuideBallRenderer.onDrawFrame] 与 swapBuffers，
+	 * TextureView 上保留最后一帧；事件队列仍处理（resize 等）。
+	 */
+	fun setRenderingPaused(paused: Boolean) {
+		renderingPaused.set(paused)
+	}
+
+	fun isRenderingPaused(): Boolean = renderingPaused.get()
 
 	fun release() {
 		if (!initialized) return

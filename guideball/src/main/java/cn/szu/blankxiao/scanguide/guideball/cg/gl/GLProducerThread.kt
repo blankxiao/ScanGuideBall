@@ -12,7 +12,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 internal class GLProducerThread(
 	private val surfaceTexture: SurfaceTexture,
 	private val renderer: GuideBallRenderer,
-	private val shouldRender: AtomicBoolean
+	private val shouldRender: AtomicBoolean,
+	private val renderingPaused: AtomicBoolean
 ) : Thread("GuideBall-GL") {
 
 	private val egl = EglCore()
@@ -35,10 +36,14 @@ internal class GLProducerThread(
 			while (shouldRender.get()) {
 				eventHandler.dequeueEventAndRun()
 				if (!shouldRender.get()) break
-				renderer.onDrawFrame()
-				egl.swapBuffers()
+				if (!renderingPaused.get()) {
+					renderer.onDrawFrame()
+					egl.swapBuffers()
+				}
 				try {
-					Thread.sleep(FRAME_INTERVAL_MS)
+					Thread.sleep(
+						if (renderingPaused.get()) PAUSE_SLEEP_MS else FRAME_INTERVAL_MS
+					)
 				} catch (_: InterruptedException) {
 					Thread.currentThread().interrupt()
 					break
@@ -54,5 +59,6 @@ internal class GLProducerThread(
 	companion object {
 		private const val TAG = "GuideBall-GL"
 		private const val FRAME_INTERVAL_MS = 16L
+		private const val PAUSE_SLEEP_MS = 100L
 	}
 }

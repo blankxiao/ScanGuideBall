@@ -8,14 +8,15 @@ import cn.szu.blankxiao.scanguide.guideball.renderer.GuideBallRenderSession
  * 将 [TextureView] 的 [SurfaceTexture] 生命周期交给 [GuideBallRenderSession]。
  */
 internal class GuideBallSurfaceTextureCoordinator(
-	private val renderSession: GuideBallRenderSession
+	private val renderSession: GuideBallRenderSession,
+	private val onRenderSessionReady: () -> Unit = {}
 ) : TextureView.SurfaceTextureListener {
 
 	override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
 		if (!renderSession.isReady()) {
-			renderSession.init(surface, width, height) { }
+			renderSession.init(surface, width, height) { onRenderSessionReady() }
 		} else {
-			renderSession.resume(surface) { }
+			renderSession.resume(surface) { onRenderSessionReady() }
 		}
 	}
 
