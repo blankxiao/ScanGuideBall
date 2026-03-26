@@ -2,9 +2,15 @@ precision mediump float;
 uniform int u_gridCols;
 uniform int u_gridRows;
 uniform float u_dotRadius;
+uniform float u_collectedMask[512];
+uniform int u_collectingIndex;
+uniform float u_collectProgress;
 varying vec3 v_nWorld;
 varying vec3 v_worldPos;
 varying vec3 v_viewDir;
+
+const float PI = 3.14159265;
+const float TWO_PI = 6.28318530;
 
 // 将球面坐标转换为 3D 单位向量
 vec3 sphericalToCartesian(float lon, float lat) {
@@ -16,46 +22,27 @@ vec3 sphericalToCartesian(float lon, float lat) {
     );
 }
 
-// 找到最近的网格点并返回其在球面上的法线
-vec3 findNearestGridPoint(vec3 normal, int cols, int rows) {
-    // 从法线计算经纬度
+// O(1) 量化到最近网格点，避免每像素遍历全网格
+void quantizeNearestGridPoint(vec3 normal, int cols, int rows, out vec3 nearestPoint, out int nearestIndex) {
     float lon = atan(normal.x, normal.z);
+    if (lon < 0.0) lon += TWO_PI;
     float lat = asin(clamp(normal.y, -1.0, 1.0));
 
-    // 计算网格步长
-    float lonStep = 2.0 * 3.14159265 / float(cols);
-    float latStep = 3.14159265 / float(rows + 1);
+    float lonStep = TWO_PI / float(cols);
+    float latStep = PI / float(rows + 1);
+    float latStart = -0.5 * PI + latStep;
 
-    // 纬度起始偏移（避开两极）
-    float latStart = -0.5 * 3.14159265 + latStep;
+    float rowF = floor((lat - latStart) / latStep + 0.5);
+    int row = int(clamp(rowF, 0.0, float(rows - 1)));
 
-    // 找到最近的网格点
-    float minAngleDist = 1000.0;
-    vec3 nearestPoint = vec3(0.0, 1.0, 0.0);
+    float colF = floor(lon / lonStep + 0.5);
+    int col = int(mod(colF, float(cols)));
+    if (col < 0) col += cols;
 
-    // 只在纬度范围内搜索
-    for (int row = 0; row < 20; row++) {
-        if (row >= rows) break;
-
-        float gridLat = latStart + float(row) * latStep;
-        float cosLat = cos(gridLat);
-        if (cosLat < 0.01) continue;
-
-        for (int col = 0; col < 20; col++) {
-            if (col >= cols) break;
-
-            float gridLon = float(col) * lonStep;
-            vec3 gridPoint = sphericalToCartesian(gridLon, gridLat);
-
-            float angleDist = acos(clamp(dot(normal, gridPoint), -1.0, 1.0));
-            if (angleDist < minAngleDist) {
-                minAngleDist = angleDist;
-                nearestPoint = gridPoint;
-            }
-        }
-    }
-
-    return nearestPoint;
+    float gridLat = latStart + float(row) * latStep;
+    float gridLon = float(col) * lonStep;
+    nearestPoint = sphericalToCartesian(gridLon, gridLat);
+    nearestIndex = row * cols + col;
 }
 
 // 计算在网格点切平面上的投影距离（屏幕空间一致的圆）
@@ -82,21 +69,42 @@ void main() {
     float base = 0.55;
     float brightness = 0.0;
 
-    // 找到最近的网格点
-    vec3 nearestGrid = findNearestGridPoint(nw, u_gridCols, u_gridRows);
+    // 直接量化到最近网格点
+    vec3 nearestGrid;
+    int nearestIndex;
+    quantizeNearestGridPoint(nw, u_gridCols, u_gridRows, nearestGrid, nearestIndex);
+
+    bool collected = false;
+    if (nearestIndex >= 0 && nearestIndex < 512) {
+        collected = u_collectedMask[nearestIndex] > 0.5;
+    }
+
+    bool collecting = nearestIndex == u_collectingIndex;
+    float dynamicDotRadius = u_dotRadius;
+    if (collecting) {
+        float easedProgress = smoothstep(0.0, 1.0, u_collectProgress);
+        dynamicDotRadius = mix(u_dotRadius, u_dotRadius * 2.4, easedProgress);
+    }
 
     // 使用切线空间距离计算圆形（屏幕一致的圆）
-    float tangentDist = calcTangentPlaneDistance(v_worldPos, nearestGrid, u_dotRadius);
+    float tangentDist = calcTangentPlaneDistance(v_worldPos, nearestGrid, dynamicDotRadius);
 
     // 绘制圆点
-    if (tangentDist < u_dotRadius) {
-        float t = tangentDist / u_dotRadius;
+    if (tangentDist < dynamicDotRadius) {
+        float t = tangentDist / dynamicDotRadius;
         // 锐利边缘的圆
         brightness = pow(1.0 - t, 2.0) * 0.65;
 
         // 中心高光
         if (t < 0.4) {
             brightness += 0.25 * (1.0 - t / 0.4);
+        }
+        if (collecting) {
+            float pulse = smoothstep(0.0, 1.0, u_collectProgress);
+            brightness += 0.35 * pulse;
+        }
+        if (collected) {
+            brightness += 0.42;
         }
     }
 

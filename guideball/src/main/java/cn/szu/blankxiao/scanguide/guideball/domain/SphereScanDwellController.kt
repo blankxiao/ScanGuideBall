@@ -8,93 +8,101 @@ class SphereScanDwellController(
     private val scanState: SphereScanState
 ) {
     // 采样间隔 (ms)
-    private val sampleIntervalMs = 100L
+    private val sampleIntervalMs = 66L
 
     // 最后采样时间
     private var lastSampleTime = 0L
 
-    // 当前目标方向
-    private var targetX = 0f
-    private var targetY = 0f
-    private var targetZ = 1f
-
     // 在目标点的停留时间 (ms)
-    private val dwellTimeMs = 500L
+    private val dwellTimeMs = 340L
 
     // 开始停留的时间
     private var dwellStartTime = 0L
 
-    // 是否正在停留
-    private var isDwelling = false
-
-    // 角度阈值（判断是否对准目标）
-    private val angleThreshold = 0.15f  // 约8.6度
-
-    /**
-     * 设置当前目标点
-     */
-    fun setTarget(x: Float, y: Float, z: Float) {
-        targetX = x
-        targetY = y
-        targetZ = z
-        isDwelling = false
-    }
+    // 当前聚焦点索引
+    private var focusedIndex = -1
 
     /**
      * 更新控制器状态，由渲染循环调用
      */
-    fun update(currentTimeMs: Long, currentDirection: FloatArray) {
+    fun update(currentTimeMs: Long, currentFocusedIndex: Int) {
+        if (scanState.isPaused()) {
+            focusedIndex = -1
+            scanState.updateCollecting(-1, 0f)
+            return
+        }
         if (currentTimeMs - lastSampleTime < sampleIntervalMs) {
             return
         }
         lastSampleTime = currentTimeMs
 
-        val cx = currentDirection[0]
-        val cy = currentDirection[1]
-        val cz = currentDirection[2]
+        if (currentFocusedIndex !in 0 until scanState.getTotalPointCount()) {
+            focusedIndex = -1
+            scanState.updateCollecting(-1, 0f)
+            return
+        }
+        if (scanState.isCollected(currentFocusedIndex)) {
+            focusedIndex = -1
+            scanState.updateCollecting(-1, 0f)
+            return
+        }
 
-        // 计算与目标的点积（即cos角度）
-        val dot = cx * targetX + cy * targetY + cz * targetZ
+        if (focusedIndex != currentFocusedIndex && !isInEffectiveRange(focusedIndex, currentFocusedIndex)) {
+            focusedIndex = currentFocusedIndex
+            dwellStartTime = currentTimeMs
+            scanState.updateCollecting(focusedIndex, 0f)
+            return
+        }
+        // 范围内漂移不重置计时，只更新可视焦点
+        focusedIndex = currentFocusedIndex
 
-        // 检查是否对准目标（点积接近1表示角度很小）
-        if (dot > (1f - angleThreshold)) {
-            if (!isDwelling) {
-                // 开始停留
-                isDwelling = true
-                dwellStartTime = currentTimeMs
-            } else if (currentTimeMs - dwellStartTime >= dwellTimeMs) {
-                // 停留完成，记录扫描点
-                scanState.addDirection(targetX, targetY, targetZ)
-                isDwelling = false
-            }
-        } else {
-            // 偏离目标，取消停留
-            isDwelling = false
+        val progress = ((currentTimeMs - dwellStartTime).toFloat() / dwellTimeMs).coerceIn(0f, 1f)
+        scanState.updateCollecting(focusedIndex, progress)
+        if (progress >= 1f) {
+            scanState.markCollected(focusedIndex)
+            focusedIndex = -1
         }
     }
 
     /**
      * 获取当前进度 (0.0 ~ 1.0)
      */
-    fun getProgress(): Float {
-        if (!isDwelling) return 0f
-        val elapsed = System.currentTimeMillis() - dwellStartTime
-        return (elapsed.toFloat() / dwellTimeMs).coerceIn(0f, 1f)
-    }
+    fun getProgress(): Float = scanState.collectingProgress
 
     /**
      * 是否正在停留
      */
-    fun isDwelling(): Boolean = isDwelling
+    fun isDwelling(): Boolean = scanState.collectingIndex >= 0
+
+    /**
+     * 获取当前聚焦点索引
+     */
+    fun getFocusedIndex(): Int = focusedIndex
 
     /**
      * 重置控制器
      */
     fun reset() {
-        isDwelling = false
-        targetX = 0f
-        targetY = 0f
-        targetZ = 1f
+        focusedIndex = -1
+        dwellStartTime = 0L
         lastSampleTime = 0L
+        scanState.updateCollecting(-1, 0f)
+    }
+
+    private fun isInEffectiveRange(baseIndex: Int, currentIndex: Int): Boolean {
+        if (baseIndex < 0 || currentIndex < 0) return false
+        val cols = scanState.getGridCols()
+        val rows = scanState.getGridRows()
+        val baseRow = baseIndex / cols
+        val baseCol = baseIndex % cols
+        val currentRow = currentIndex / cols
+        val currentCol = currentIndex % cols
+        val rowDelta = kotlin.math.abs(baseRow - currentRow)
+        val rawColDelta = kotlin.math.abs(baseCol - currentCol)
+        val colDelta = minOf(rawColDelta, cols - rawColDelta)
+        if (baseRow !in 0 until rows || currentRow !in 0 until rows) return false
+        // 圆形有效范围：网格平面距离落在半径内才连续计时
+        val radius = 2
+        return rowDelta * rowDelta + colDelta * colDelta <= radius * radius
     }
 }

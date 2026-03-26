@@ -28,9 +28,15 @@ internal class SphereRenderPipeline(context: Context) {
     private var uGridCols: Int = -1
     private var uGridRows: Int = -1
     private var uDotRadius: Int = -1
+    private var uCollectedMask: Int = -1
+    private var uCollectingIndex: Int = -1
+    private var uCollectProgress: Int = -1
 
     // 固定矩阵：Model恒等，View/Projection在渲染器中计算
     private val identityMatrix = FloatArray(16).apply { Matrix.setIdentityM(this, 0) }
+    private val collectedMaskBuffer = FloatArray(MAX_SCAN_POINTS)
+    private var collectingIndex: Int = -1
+    private var collectProgress: Float = 0f
 
     init {
         // 初始化GL状态
@@ -61,6 +67,21 @@ internal class SphereRenderPipeline(context: Context) {
         uGridCols = GLES20.glGetUniformLocation(program, "u_gridCols")
         uGridRows = GLES20.glGetUniformLocation(program, "u_gridRows")
         uDotRadius = GLES20.glGetUniformLocation(program, "u_dotRadius")
+        uCollectedMask = GLES20.glGetUniformLocation(program, "u_collectedMask")
+        uCollectingIndex = GLES20.glGetUniformLocation(program, "u_collectingIndex")
+        uCollectProgress = GLES20.glGetUniformLocation(program, "u_collectProgress")
+    }
+
+    fun updateScanVisualState(collectedMask: FloatArray, collectingIndex: Int, collectProgress: Float) {
+        val count = collectedMask.size.coerceAtMost(MAX_SCAN_POINTS)
+        for (i in 0 until count) {
+            collectedMaskBuffer[i] = collectedMask[i]
+        }
+        for (i in count until MAX_SCAN_POINTS) {
+            collectedMaskBuffer[i] = 0f
+        }
+        this.collectingIndex = collectingIndex
+        this.collectProgress = collectProgress.coerceIn(0f, 1f)
     }
 
     /**
@@ -96,6 +117,9 @@ internal class SphereRenderPipeline(context: Context) {
         GLES20.glUniform1i(uGridCols, EglConfig.GRID_COLS)
         GLES20.glUniform1i(uGridRows, EglConfig.GRID_ROWS)
         GLES20.glUniform1f(uDotRadius, EglConfig.DOT_RADIUS)
+        GLES20.glUniform1fv(uCollectedMask, MAX_SCAN_POINTS, collectedMaskBuffer, 0)
+        GLES20.glUniform1i(uCollectingIndex, collectingIndex)
+        GLES20.glUniform1f(uCollectProgress, collectProgress)
 
         // 设置顶点属性
         val stride = m.floatsPerVertex * EglConfig.BYTES_FLOAT
@@ -130,5 +154,9 @@ internal class SphereRenderPipeline(context: Context) {
             GLES20.glDeleteProgram(program)
             program = 0
         }
+    }
+
+    companion object {
+        private const val MAX_SCAN_POINTS = EglConfig.GRID_COLS * EglConfig.GRID_ROWS
     }
 }

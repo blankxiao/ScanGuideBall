@@ -15,6 +15,7 @@ class GuideBallRotationController(
 	private val eye = FloatArray(3)
 	private val forward = FloatArray(3)
 	private val up = FloatArray(3)
+	private val latestForward = FloatArray(3)
 
 	/**
 	 * 更新相机视图
@@ -26,6 +27,9 @@ class GuideBallRotationController(
 		// forward: 从球心向外的方向向量
 		// up: 世界坐标系上方向
 		orientationProvider.getCameraFrame(eye, forward, up)
+		latestForward[0] = forward[0]
+		latestForward[1] = forward[1]
+		latestForward[2] = forward[2]
 
 		// 相机应该看向球心 (0,0,0)
 		// 因为 eye 已经在 -forward * radius 的位置
@@ -34,6 +38,15 @@ class GuideBallRotationController(
 
 		// 重建视图矩阵：从 eye 看向球心
 		camera.rebuildViewMatrix(eye, target, up)
+	}
+
+	/**
+	 * 获取最近一帧的 forward 方向（从球心指向相机）
+	 */
+	fun getLatestForward(out: FloatArray) {
+		out[0] = latestForward[0]
+		out[1] = latestForward[1]
+		out[2] = latestForward[2]
 	}
 
 	/**

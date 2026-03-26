@@ -3,8 +3,15 @@ package cn.szu.blankxiao.scanguide.guideball.renderer
 import android.content.Context
 import android.opengl.GLES20
 import cn.szu.blankxiao.scanguide.guideball.cg.GuideBallCamera
+import cn.szu.blankxiao.scanguide.guideball.cg.egl.EglConfig
 import cn.szu.blankxiao.scanguide.guideball.controller.GuideBallRotationController
 import cn.szu.blankxiao.scanguide.guideball.cg.render.SphereRenderPipeline
+import cn.szu.blankxiao.scanguide.guideball.domain.SphereScanDwellController
+import cn.szu.blankxiao.scanguide.guideball.domain.SphereScanState
+import kotlin.math.PI
+import kotlin.math.asin
+import kotlin.math.atan2
+import kotlin.math.roundToInt
 
 /**
  * 球体引导渲染器
@@ -14,7 +21,8 @@ import cn.szu.blankxiao.scanguide.guideball.cg.render.SphereRenderPipeline
  * - 从 camera 获取 MVP 矩阵
  */
 internal class SphereGuideRenderer(
-	private val rotationController: GuideBallRotationController
+	private val rotationController: GuideBallRotationController,
+	private val scanState: SphereScanState
 ) : GuideBallRenderer {
 
 	private lateinit var camera: GuideBallCamera
@@ -22,6 +30,9 @@ internal class SphereGuideRenderer(
 
 	private var width: Int = 1
 	private var height: Int = 1
+	private val currentForward = FloatArray(3)
+	private val currentViewNormal = FloatArray(3)
+	private val dwellController = SphereScanDwellController(scanState)
 
 	override fun onGLContextAvailable() {
 		pipeline = SphereRenderPipeline(context)
@@ -47,9 +58,42 @@ internal class SphereGuideRenderer(
 
 		// 更新相机视图（参考 MyPanorama：rotationController.updateCameraView(camera)）
 		rotationController.updateCameraView(camera)
+		rotationController.getLatestForward(currentForward)
+		// 屏幕中心对应的是相机朝向球面的法线，方向应为 -forward
+		currentViewNormal[0] = -currentForward[0]
+		currentViewNormal[1] = -currentForward[1]
+		currentViewNormal[2] = -currentForward[2]
+		dwellController.update(System.currentTimeMillis(), findFocusedGridIndex(currentViewNormal))
+		p.updateScanVisualState(
+			collectedMask = scanState.getCollectedMask(),
+			collectingIndex = scanState.collectingIndex,
+			collectProgress = scanState.collectingProgress
+		)
 
 		// 渲染（使用相机提供的 MVP 矩阵）
 		p.render(camera.getMVPMatrix())
+	}
+
+	private fun findFocusedGridIndex(forward: FloatArray): Int {
+		val x = forward[0]
+		val y = forward[1].coerceIn(-1f, 1f)
+		val z = forward[2]
+		val lon = wrapLongitude(atan2(x, z).toFloat())
+		val lat = asin(y.toDouble()).toFloat()
+		val lonStep = (2f * PI.toFloat()) / EglConfig.GRID_COLS
+		val latStep = PI.toFloat() / (EglConfig.GRID_ROWS + 1)
+		val latStart = -0.5f * PI.toFloat() + latStep
+		val row = ((lat - latStart) / latStep).roundToInt().coerceIn(0, EglConfig.GRID_ROWS - 1)
+		val col = (lon / lonStep).roundToInt().mod(EglConfig.GRID_COLS)
+		return row * EglConfig.GRID_COLS + col
+	}
+
+	private fun wrapLongitude(value: Float): Float {
+		var lon = value
+		val twoPi = 2f * PI.toFloat()
+		while (lon < 0f) lon += twoPi
+		while (lon >= twoPi) lon -= twoPi
+		return lon
 	}
 
 	// 延迟初始化 context

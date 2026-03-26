@@ -39,6 +39,7 @@ fun GuideBallPlaceholder(
 	azimuthToastThresholdDeg: Float? = 30f
 ) {
 	var completeness by remember { mutableFloatStateOf(0f) }
+	var isPaused by remember { mutableStateOf(false) }
 	var glView by remember { mutableStateOf<GuideBallGlView?>(null) }
 	val azimuthState = remember { mutableFloatStateOf(0f) }
 	val pitchState = remember { mutableFloatStateOf(0f) }
@@ -55,7 +56,11 @@ fun GuideBallPlaceholder(
 	Box(modifier = modifier.fillMaxSize()) {
 		AndroidView(
 			factory = { ctx ->
-				GuideBallGlView(ctx) { completeness = it }.also { glView = it }
+				GuideBallGlView(
+					context = ctx,
+					onCompletenessChanged = { completeness = it },
+					onPausedChanged = { isPaused = it }
+				).also { glView = it }
 			},
 			modifier = Modifier.fillMaxSize()
 		)
@@ -83,12 +88,19 @@ fun GuideBallPlaceholder(
 				.align(Alignment.BottomCenter)
 				.padding(bottom = 40.dp)
 				.size(72.dp)
-				.clickable { glView?.togglePause() },
+				.clickable { isPaused = glView?.togglePause() ?: isPaused },
 			contentAlignment = Alignment.Center
 		) {
 			CircularProgressIndicator(
 				progress = { completeness },
-				modifier = Modifier.size(56.dp)
+				modifier = Modifier.size(56.dp),
+				color = if (isPaused) Color(0xFF9AA0A6) else MaterialTheme.colorScheme.primary,
+				trackColor = Color(0x44FFFFFF)
+			)
+			Text(
+				text = String.format(Locale.US, "%.0f%%", completeness * 100f),
+				color = Color.White,
+				style = MaterialTheme.typography.labelSmall
 			)
 		}
 	}

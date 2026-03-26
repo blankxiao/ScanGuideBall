@@ -14,14 +14,14 @@ object EglConfig {
     const val Z_FAR = 100f
 
     // 网格参数 - 调整这些值来改变点阵密度和清晰度
-    const val GRID_COLS = 14      // 经度方向列数
-    const val GRID_ROWS = 12      // 纬度方向行数
-    const val DOT_RADIUS = 0.028f // 点的大小
+    const val GRID_COLS = 18      // 经度方向列数
+    const val GRID_ROWS = 16      // 纬度方向行数
+    const val DOT_RADIUS = 0.024f // 点的基础大小
 
     // 球体几何参数
     const val SPHERE_RADIUS = 1f
-    const val SPHERE_WIDTH_SEGMENTS = 64
-    const val SPHERE_HEIGHT_SEGMENTS = 32
+    const val SPHERE_WIDTH_SEGMENTS = 48
+    const val SPHERE_HEIGHT_SEGMENTS = 24
 
     // OpenGL常量
     const val BYTES_FLOAT = 4

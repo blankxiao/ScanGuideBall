@@ -19,7 +19,8 @@ import cn.szu.blankxiao.scanguide.guideball.renderer.SphereGuideRenderer
  */
 class GuideBallGlView(
 	context: Context,
-	onCompletenessChanged: ((Float) -> Unit)? = null
+	onCompletenessChanged: ((Float) -> Unit)? = null,
+	private val onPausedChanged: ((Boolean) -> Unit)? = null
 ) : FrameLayout(context) {
 
 	val scanState: SphereScanState = SphereScanState(onCompletenessChanged)
@@ -31,7 +32,7 @@ class GuideBallGlView(
 	private val rotationController = GuideBallRotationController(orientationProvider)
 
 	// 渲染器（类似 MyPanorama 的 Renderer）
-	private val renderer = SphereGuideRenderer(rotationController).apply {
+	private val renderer = SphereGuideRenderer(rotationController, scanState).apply {
 		setContext(context)
 	}
 
@@ -55,11 +56,13 @@ class GuideBallGlView(
 		)
 	}
 
-	fun togglePause() {
+	fun togglePause(): Boolean {
 		scanState.togglePause()
+		onPausedChanged?.invoke(scanState.isPaused())
 		if (renderSession.isReady()) {
 			renderSession.setRenderingPaused(scanState.isPaused())
 		}
+		return scanState.isPaused()
 	}
 
 	override fun onAttachedToWindow() {
