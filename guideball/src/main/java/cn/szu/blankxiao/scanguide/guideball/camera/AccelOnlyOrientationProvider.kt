@@ -132,6 +132,12 @@ class AccelOnlyOrientationProvider(
 		}
 
 		// 档位逻辑（使用滤波后的值，仅用于触发回调）
+		// 新坐标系：俯仰角是设备绕 X 轴的旋转
+		// - 水平时，重力沿 -Z（设备 Z 轴向上），gyFiltered 接近 0，gzFiltered 接近 -1
+		// - 向上倾斜时，设备 Y 轴指向上方，gyFiltered 变为负数
+		// - 向下倾斜时，设备 Y 轴指向下方，gyFiltered 变为正数
+		// 俯仰角 = atan2(重力在 Y 轴的分量, 重力在 XZ 平面的分量)
+		// 由于 +Z 是向上，-gyFiltered 表示俯仰（负 = 向上看，正 = 向下看）
 		val horizontalLen = sqrt((gxFiltered * gxFiltered + gzFiltered * gzFiltered).toDouble()).toFloat()
 		val rawPitch = kotlin.math.atan2(-gyFiltered, horizontalLen)
 		val oldLevel = currentLevelIndex
@@ -144,15 +150,21 @@ class AccelOnlyOrientationProvider(
 	/**
 	 * 从重力向量计算旋转矩阵
 	 * 参考 Android SensorManager.getRotationMatrix 的逻辑
-	 * 
-	 * 世界坐标系：Y轴向上，Z轴向前（负方向看向球心）
-	 * 手机平放时（重力向下 Y-），相机看向 Z-（前方）
-	 * 手机向上倾斜时（俯仰增加），相机向上看（看向 Y+）
+	 *
+	 * 世界坐标系定义（符合 todo.md）：
+	 * - +X = 右手边
+	 * - +Y = 人脸面向的方向（手机前方）
+	 * - +Z = 与重力相反方向（向上）
+	 *
+	 * 手机正常竖直持握（屏幕面向人脸）：
+	 * - 重力沿设备 Y 轴向下
+	 * - 相机应该看向 +Y（人脸面向的方向，即球体赤道区域）
+	 * - 向上倾斜看到球顶（+Z），向下倾斜看到球底（-Z）
+	 * - 向左倾斜看到左边（-X），向右倾斜看到右边（+X）
 	 */
 	private fun computeRotationMatrixFromGravity(gx: Float, gy: Float, gz: Float, outMatrix: FloatArray) {
 		// 重力向量 = (gx, gy, gz)，指向地心
-		// 世界坐标系中，-Y 是重力方向，所以我们需要一个旋转矩阵
-		// 将设备的加速度坐标系与世界坐标系对齐
+		// 世界坐标系中，-Z 是重力方向（因为 +Z 是与重力相反）
 		
 		// 归一化重力向量
 		val gLen = sqrt((gx * gx + gy * gy + gz * gz).toDouble()).toFloat()
@@ -160,47 +172,125 @@ class AccelOnlyOrientationProvider(
 		val ay = gy / gLen
 		val az = gz / gLen
 		
-		// 重力向量在世界坐标系中是 (0, -1, 0)
-		// 我们需要找到设备的朝向
+		// 构建旋转矩阵：将设备坐标系映射到世界坐标系
 		// 
 		// 策略：假设设备没有绕重力轴的旋转（即假设 roll=0）
-		// 这样可以构建一个有效的旋转矩阵
-		//
-		// 设备的 Y 轴（up）应该是 -gravity
-		// 设备的 Z 轴（forward）应该与 Y 轴垂直，且在水平面内
-		// 设备的 X 轴（right）由 Y × Z 得到
+		// 世界坐标系定义：
+		// - 设备 Y 轴（屏幕上方）-> 世界 Y 轴（forward，人脸面向）
+		// - 设备 Z 轴（屏幕向后）-> 世界 -Z 轴（与重力相反，向上）
+		// - 设备 X 轴（屏幕向右）-> 世界 X 轴（right）
 		
-		// 简化的 getRotationMatrix：假设没有磁场，roll=0
-		// 参考 https://developer.android.com/reference/android/hardware/SensorManager#getRotationMatrix(float[],%20float[],%20float[],%20float[])
+		// 世界坐标系中：
+		// - up（与世界 Z 对齐）= -gravity = (-ax, -ay, -az)
+		// - 但我们需要设备 Z 指向世界 -Z，所以调整
 		
-		var Hx = ay
-		var Hy = -ax
+		// 设备的 up 方向（与重力相反）
+		val upX = -ax
+		val upY = -ay
+		val upZ = -az
+		
+		// 设备 forward 方向：假设 forward 是 Y 轴（屏幕上方指向人脸）
+		// 我们需要找到一个与 up 垂直的向量作为 forward
+		// 假设 roll=0，即设备的 XZ 平面保持水平
+		
+		// 计算 East 向量（right）：与 up 和 forward 都垂直
+		// 简化计算：假设 forward 在水平面内，我们先计算 right，再得到 forward
+		
+		// 当重力主要沿 Y 轴时（手机竖直），right 应该沿 X 轴
+		// 我们需要构建一个正交基
+		
+		// 方法：使用重力向量计算 right，然后 right × up = forward
+		// right 应该与重力和 Z 轴都垂直
+		
+		// 简化的正交基构建（假设 roll=0）
+		// 参考 getRotationMatrix 但调整坐标轴映射
+		
+		// 重力在世界坐标系中指向 -Z，所以设备坐标到世界坐标的映射：
+		// - 设备 Y 轴 -> 世界 Y 轴（forward）
+		// - 设备 -Z 轴 -> 世界 Z 轴（up，与重力相反）
+		// - 设备 X 轴 -> 世界 X 轴（right）
+		
+		// 首先归一化重力
+		val invG = 1.0f / gLen
+		val gxNorm = gx * invG
+		val gyNorm = gy * invG
+		val gzNorm = gz * invG
+		
+		// 世界坐标系中的 Up = -gravity = (-gxNorm, -gyNorm, -gzNorm)
+		// 但在这个世界坐标系中，Up 对应的是 +Z
+		
+		// 构建旋转矩阵（列主序）：
+		// 列 0 = right (X轴)
+		// 列 1 = forward (Y轴)
+		// 列 2 = up (Z轴)
+		
+		// 由于重力主要检测俯仰，我们需要假设 roll=0
+		// 即：设备的 X 轴保持水平（与世界 X 对齐）
+		
+		// 当手机竖直（重力沿 Y 轴向下）：
+		// - right = X 轴 = (1, 0, 0)
+		// - up = -gravity = (0, 1, 0) 但这不是世界的 Z...
+		
+		// 重新理解：我们希望相机看向哪里
+		// 手机正常竖直时，相机应该看向 Y+（人脸方向）
+		// 手机向上倾斜时，相机应该看向 Y+Z+（向上）
+		// 这意味着相机的 forward 应该与重力向量有关
+		
+		// 解决方案：相机的 forward = 水平面的方向 + 垂直分量
+		// 水平面内的 forward 由设备 Y 轴投影到水平面决定
+		
+		// 计算水平面的法线（重力方向）
+		val gnx = gxNorm
+		val gny = gyNorm
+		val gnz = gzNorm
+		
+		// 设备 Y 轴在世界坐标系中的方向（假设 roll=0）
+		// 我们需要找到与重力垂直的平面内的 forward 方向
+		
+		// 简化方案：使用与 getRotationMatrix 类似的方法
+		// 但交换 Y 和 Z 轴的角色
+		
+		// 磁场向量近似（指向东，与重力和北都垂直）
+		// 假设北是 -Y（设备前方在世界中的投影）
+		var Hx = gny  // 使用重力 Y 和 Z 分量
+		var Hy = -gnx
 		val Hz = 0f
 		val invH = 1.0f / sqrt((Hx * Hx + Hy * Hy).toDouble()).toFloat()
-		Hx *= invH
-		Hy *= invH
+		if (invH.isFinite() && invH > 0) {
+			Hx *= invH
+			Hy *= invH
+		}
 		
-		val Mx = ay * Hz - az * Hy
-		val My = az * Hx - ax * Hz
-		val Mz = ax * Hy - ay * Hx
+		// 北向量（与重力和东都垂直）
+		val Ax = gny * Hz - gnz * Hy
+		val Ay = gnz * Hx - gnx * Hz
+		val Az = gnx * Hy - gny * Hx
 		
-		// 列主序的旋转矩阵
-		// 列 0: right (East)
+		// 现在我们需要映射坐标轴：
+		// - 列 0 (right) = East = H
+		// - 列 1 (forward) = North = A（但指向设备前方，即 -Y）
+		// - 列 2 (up) = -gravity
+		
+		// 注意：A 指向北，但我们需要它指向设备前方（南 = -北）
+		// 所以 forward = -A
+		
+		// 列主序旋转矩阵
+		// 列 0: right (X)
 		outMatrix[0] = Hx
 		outMatrix[1] = Hy
 		outMatrix[2] = Hz
 		outMatrix[3] = 0f
 		
-		// 列 1: up (gravity inverse)
-		outMatrix[4] = -ax
-		outMatrix[5] = -ay
-		outMatrix[6] = -az
+		// 列 1: forward (Y) = -North = -A，这样看向设备前方
+		outMatrix[4] = -Ax
+		outMatrix[5] = -Ay
+		outMatrix[6] = -Az
 		outMatrix[7] = 0f
 		
-		// 列 2: forward (North)
-		outMatrix[8] = Mx
-		outMatrix[9] = My
-		outMatrix[10] = Mz
+		// 列 2: up (Z) = -gravity（与世界 Z 对齐）
+		outMatrix[8] = -gnx
+		outMatrix[9] = -gny
+		outMatrix[10] = -gnz
 		outMatrix[11] = 0f
 		
 		// 列 3: translation
@@ -228,6 +318,11 @@ class AccelOnlyOrientationProvider(
 
 	/**
 	 * 渲染线程调用：直接返回 rotationMatrix 引用（参考 MyPanorama）
+	 *
+	 * 世界坐标系：
+	 * - +X = 右手边
+	 * - +Y = 人脸面向的方向（相机 forward 方向）
+	 * - +Z = 与重力相反方向（向上）
 	 */
 	override fun getCameraFrame(eyeOut: FloatArray, forwardOut: FloatArray, upOut: FloatArray) {
 		if (!hasValidData) {
@@ -240,26 +335,33 @@ class AccelOnlyOrientationProvider(
 		Matrix.multiplyMM(finalRotation, 0, rotationMatrix, 0, biasMatrix, 0)
 
 		// 从旋转矩阵提取方向向量
-		// 列主序：0,1,2 = 第一列 = rightX, rightY, rightZ
-		//        4,5,6 = 第二列 = upX, upY, upZ
-		//        8,9,10 = 第三列 = forwardX, forwardY, forwardZ
-		val upX = finalRotation[4]
-		val upY = finalRotation[5]
-		val upZ = finalRotation[6]
+		// 列主序（新坐标系定义）：
+		// - 列 0 (0,1,2): right (X轴)
+		// - 列 1 (4,5,6): forward (Y轴，人脸面向的方向)
+		// - 列 2 (8,9,10): up (Z轴，与重力相反)
+		val rightX = finalRotation[0]
+		val rightY = finalRotation[1]
+		val rightZ = finalRotation[2]
 
-		val forwardX = finalRotation[8]
-		val forwardY = finalRotation[9]
-		val forwardZ = finalRotation[10]
+		val forwardX = finalRotation[4]
+		val forwardY = finalRotation[5]
+		val forwardZ = finalRotation[6]
 
-		// 设置输出
+		val upX = finalRotation[8]
+		val upY = finalRotation[9]
+		val upZ = finalRotation[10]
+
+		// 设置输出 - forward 指向 Y 轴（人脸面向的方向）
 		forwardOut[0] = forwardX
 		forwardOut[1] = forwardY
 		forwardOut[2] = forwardZ
 
+		// up 指向 Z 轴（与重力相反，向上）
 		upOut[0] = upX
 		upOut[1] = upY
 		upOut[2] = upZ
 
+		// eye 在 -forward * radius 处（相机位置）
 		eyeOut[0] = -forwardX * orbitRadius
 		eyeOut[1] = -forwardY * orbitRadius
 		eyeOut[2] = -forwardZ * orbitRadius
