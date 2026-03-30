@@ -7,6 +7,7 @@
 ## 演示
 
 ![ScanGuideBall 演示](./docs/demo.gif)
+![ScanGuideBall 演示](./docs/demo2.gif)
 
 ---
 
