@@ -36,6 +36,7 @@ class RotationVectorCameraProvider(
 	// 偏移矩阵
 	private val noAzimuthAngles = FloatArray(3)
 	private val noRollDegRotation = FloatArray(16)
+	private val remappedRotationMatrix = FloatArray(16)
 
 	private var isFirstFrame = true
 
@@ -74,16 +75,21 @@ class RotationVectorCameraProvider(
 	 * 光轴 = -Z_device，上方向 = +Y_device。
 	 */
 	override fun getCameraFrame(eyeOut: FloatArray, forwardOut: FloatArray, upOut: FloatArray) {
-		// finalRotation = rotationMatrix * biasMatrix
-		SensorManager.getOrientation(rotationMatrix, noAzimuthAngles)
+		SensorManager.remapCoordinateSystem(
+			rotationMatrix,
+			SensorManager.AXIS_X,
+			SensorManager.AXIS_Z,
+			remappedRotationMatrix
+		)
+		SensorManager.getOrientation(remappedRotationMatrix, noAzimuthAngles)
 
 		val azimuth = Math.toDegrees(noAzimuthAngles[0].toDouble()).toFloat()
 		val pitchDeg = Math.toDegrees(noAzimuthAngles[1].toDouble()).toFloat()
 		val rollDeg = Math.toDegrees(noAzimuthAngles[2].toDouble()).toFloat()
 
 		Matrix.setIdentityM(noRollDegRotation, 0)
-		Matrix.rotateM(noRollDegRotation, 0, azimuth, 0f, 1f, 0f)
-		Matrix.rotateM(noRollDegRotation, 0, 90f - pitchDeg, 1f, 0f, 0f)
+		Matrix.rotateM(noRollDegRotation, 0, - azimuth, 0f, 1f, 0f)
+		Matrix.rotateM(noRollDegRotation, 0, - pitchDeg, 1f, 0f, 0f)
 
 		val forwardX = -noRollDegRotation[8]
 		val forwardY = -noRollDegRotation[9]
