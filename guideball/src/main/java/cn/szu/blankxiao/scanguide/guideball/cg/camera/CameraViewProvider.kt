@@ -1,4 +1,4 @@
-package cn.szu.blankxiao.scanguide.guideball.camera
+package cn.szu.blankxiao.scanguide.guideball.cg.camera
 
 /**
  * 相机视角数据源（最高优先级：由宿主/AR/相机管线提供，与 OpenGL 渲染共用同一套约定）。

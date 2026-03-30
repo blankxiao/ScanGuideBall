@@ -23,9 +23,6 @@ class GuideBallCamera(val screenRatio: Float) {
 	var currentFov: Float = DEFAULT_FOV
 		private set
 
-	// 轨道半径
-	var orbitRadius: Float = DEFAULT_ORBIT_RADIUS
-
 	init {
 		updateProjectionMatrix(DEFAULT_FOV)
 	}
@@ -58,20 +55,6 @@ class GuideBallCamera(val screenRatio: Float) {
 		)
 	}
 
-	/**
-	 * 视图矩阵重设为单位矩阵
-	 */
-	fun resetViewMatrix() {
-		Matrix.setIdentityM(viewMatrix, 0)
-	}
-
-	/**
-	 * 应用旋转矩阵到视图矩阵
-	 * @param rotationMatrix 旋转矩阵
-	 */
-	fun rotate(rotationMatrix: FloatArray) {
-		Matrix.multiplyMM(viewMatrix, 0, viewMatrix, 0, rotationMatrix, 0)
-	}
 
 	/**
 	 * 获取 MVP 矩阵（Projection × View）
@@ -80,11 +63,6 @@ class GuideBallCamera(val screenRatio: Float) {
 		Matrix.multiplyMM(mvpMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
 		return mvpMatrix
 	}
-
-	/**
-	 * 获取视图矩阵副本
-	 */
-	fun getViewMatrix(): FloatArray = viewMatrix.copyOf()
 
 	companion object {
 		private const val Z_NEAR = 0.1f

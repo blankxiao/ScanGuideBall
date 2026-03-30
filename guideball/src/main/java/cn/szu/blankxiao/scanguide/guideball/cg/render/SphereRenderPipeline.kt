@@ -3,7 +3,7 @@ package cn.szu.blankxiao.scanguide.guideball.cg.render
 import android.content.Context
 import android.opengl.GLES20
 import android.opengl.Matrix
-import cn.szu.blankxiao.scanguide.guideball.cg.egl.EglConfig
+import cn.szu.blankxiao.scanguide.guideball.cg.egl.GuideBallConfig
 import cn.szu.blankxiao.scanguide.guideball.cg.mesh.SphereGeometry
 import cn.szu.blankxiao.scanguide.guideball.cg.shader.ShaderLoader
 
@@ -24,7 +24,6 @@ internal class SphereRenderPipeline(context: Context) {
     // Uniform位置缓存
     private var uMvpMatrix: Int = -1
     private var uModelMatrix: Int = -1
-    private var uViewMatrix: Int = -1
     private var uGridCols: Int = -1
     private var uGridRows: Int = -1
     private var uDotRadius: Int = -1
@@ -40,13 +39,13 @@ internal class SphereRenderPipeline(context: Context) {
 
     init {
         // 初始化GL状态
-        EglConfig.initGLState()
+        GuideBallConfig.initGLState()
 
         // 加载Shader并创建程序
         program = ShaderLoader.createProgramFromAssets(
             context,
-            EglConfig.VERTEX_SHADER_PATH,
-            EglConfig.FRAGMENT_SHADER_PATH
+            GuideBallConfig.VERTEX_SHADER_PATH,
+            GuideBallConfig.FRAGMENT_SHADER_PATH
         )
 
         // 获取uniform位置
@@ -54,16 +53,15 @@ internal class SphereRenderPipeline(context: Context) {
 
         // 构建球体几何
         mesh = SphereGeometry.build(
-            radius = EglConfig.SPHERE_RADIUS,
-            widthSegments = EglConfig.SPHERE_WIDTH_SEGMENTS,
-            heightSegments = EglConfig.SPHERE_HEIGHT_SEGMENTS
+            radius = GuideBallConfig.SPHERE_RADIUS,
+            widthSegments = GuideBallConfig.SPHERE_WIDTH_SEGMENTS,
+            heightSegments = GuideBallConfig.SPHERE_HEIGHT_SEGMENTS
         )
     }
 
     private fun cacheUniformLocations() {
         uMvpMatrix = GLES20.glGetUniformLocation(program, "u_mvpMatrix")
         uModelMatrix = GLES20.glGetUniformLocation(program, "u_modelMatrix")
-        uViewMatrix = GLES20.glGetUniformLocation(program, "u_viewMatrix")
         uGridCols = GLES20.glGetUniformLocation(program, "u_gridCols")
         uGridRows = GLES20.glGetUniformLocation(program, "u_gridRows")
         uDotRadius = GLES20.glGetUniformLocation(program, "u_dotRadius")
@@ -109,20 +107,16 @@ internal class SphereRenderPipeline(context: Context) {
         // 上传固定Model矩阵（恒等）
         GLES20.glUniformMatrix4fv(uModelMatrix, 1, false, identityMatrix, 0)
 
-        // 上传固定View矩阵（用于world-space计算，使用恒等占位，
-        // 实际View变换已包含在MVP中）
-        GLES20.glUniformMatrix4fv(uViewMatrix, 1, false, identityMatrix, 0)
-
         // 上传网格参数
-        GLES20.glUniform1i(uGridCols, EglConfig.GRID_COLS)
-        GLES20.glUniform1i(uGridRows, EglConfig.GRID_ROWS)
-        GLES20.glUniform1f(uDotRadius, EglConfig.DOT_RADIUS)
+        GLES20.glUniform1i(uGridCols, GuideBallConfig.GRID_COLS)
+        GLES20.glUniform1i(uGridRows, GuideBallConfig.GRID_ROWS)
+        GLES20.glUniform1f(uDotRadius, GuideBallConfig.DOT_RADIUS)
         GLES20.glUniform1fv(uCollectedMask, MAX_SCAN_POINTS, collectedMaskBuffer, 0)
         GLES20.glUniform1i(uCollectingIndex, collectingIndex)
         GLES20.glUniform1f(uCollectProgress, collectProgress)
 
         // 设置顶点属性
-        val stride = m.floatsPerVertex * EglConfig.BYTES_FLOAT
+        val stride = m.floatsPerVertex * GuideBallConfig.BYTES_FLOAT
 
         m.vertexBuffer.position(0)
         GLES20.glVertexAttribPointer(0, 3, GLES20.GL_FLOAT, false, stride, m.vertexBuffer)
@@ -157,6 +151,6 @@ internal class SphereRenderPipeline(context: Context) {
     }
 
     companion object {
-        private const val MAX_SCAN_POINTS = EglConfig.GRID_COLS * EglConfig.GRID_ROWS
+        private const val MAX_SCAN_POINTS = GuideBallConfig.GRID_COLS * GuideBallConfig.GRID_ROWS
     }
 }

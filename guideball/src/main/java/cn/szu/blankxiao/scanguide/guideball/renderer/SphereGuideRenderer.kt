@@ -3,10 +3,10 @@ package cn.szu.blankxiao.scanguide.guideball.renderer
 import android.content.Context
 import android.opengl.GLES20
 import cn.szu.blankxiao.scanguide.guideball.cg.GuideBallCamera
-import cn.szu.blankxiao.scanguide.guideball.cg.egl.EglConfig
+import cn.szu.blankxiao.scanguide.guideball.cg.egl.GuideBallConfig
 import cn.szu.blankxiao.scanguide.guideball.controller.GuideBallRotationController
 import cn.szu.blankxiao.scanguide.guideball.cg.render.SphereRenderPipeline
-import cn.szu.blankxiao.scanguide.guideball.domain.SphereScanDwellController
+import cn.szu.blankxiao.scanguide.guideball.controller.SphereScanDwellController
 import cn.szu.blankxiao.scanguide.guideball.domain.SphereScanState
 import kotlin.math.PI
 import kotlin.math.asin
@@ -56,9 +56,10 @@ internal class SphereGuideRenderer(
 		// 清空缓冲区
 		GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
 
-		// 更新相机视图（参考 MyPanorama：rotationController.updateCameraView(camera)）
+		// 更新相机视图
 		rotationController.updateCameraView(camera)
 		rotationController.getLatestForward(currentForward)
+		// 更新收集进度及斑点状态
 		// 屏幕中心对应的是相机朝向球面的法线，方向应为 -forward
 		currentViewNormal[0] = -currentForward[0]
 		currentViewNormal[1] = -currentForward[1]
@@ -70,7 +71,7 @@ internal class SphereGuideRenderer(
 			collectProgress = scanState.collectingProgress
 		)
 
-		// 渲染（使用相机提供的 MVP 矩阵）
+		// 渲染
 		p.render(camera.getMVPMatrix())
 	}
 
@@ -78,14 +79,14 @@ internal class SphereGuideRenderer(
 		val x = forward[0]
 		val y = forward[1].coerceIn(-1f, 1f)
 		val z = forward[2]
-		val lon = wrapLongitude(atan2(x, z).toFloat())
+		val lon = wrapLongitude(atan2(x, z))
 		val lat = asin(y.toDouble()).toFloat()
-		val lonStep = (2f * PI.toFloat()) / EglConfig.GRID_COLS
-		val latStep = PI.toFloat() / (EglConfig.GRID_ROWS + 1)
+		val lonStep = (2f * PI.toFloat()) / GuideBallConfig.GRID_COLS
+		val latStep = PI.toFloat() / (GuideBallConfig.GRID_ROWS + 1)
 		val latStart = -0.5f * PI.toFloat() + latStep
-		val row = ((lat - latStart) / latStep).roundToInt().coerceIn(0, EglConfig.GRID_ROWS - 1)
-		val col = (lon / lonStep).roundToInt().mod(EglConfig.GRID_COLS)
-		return row * EglConfig.GRID_COLS + col
+		val row = ((lat - latStart) / latStep).roundToInt().coerceIn(0, GuideBallConfig.GRID_ROWS - 1)
+		val col = (lon / lonStep).roundToInt().mod(GuideBallConfig.GRID_COLS)
+		return row * GuideBallConfig.GRID_COLS + col
 	}
 
 	private fun wrapLongitude(value: Float): Float {
@@ -103,8 +104,4 @@ internal class SphereGuideRenderer(
 		this.context = context.applicationContext
 	}
 
-	/**
-	 * 获取相机（供外部访问）
-	 */
-	fun getCamera(): GuideBallCamera = camera
 }

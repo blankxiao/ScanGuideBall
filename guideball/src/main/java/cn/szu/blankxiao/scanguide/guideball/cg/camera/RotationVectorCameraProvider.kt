@@ -1,4 +1,4 @@
-package cn.szu.blankxiao.scanguide.guideball.camera
+package cn.szu.blankxiao.scanguide.guideball.cg.camera
 
 import android.content.Context
 import android.hardware.Sensor
@@ -18,9 +18,9 @@ import android.opengl.Matrix
  * 列 0/1/2 分别为设备 X/Y/Z 轴在世界坐标系中的单位向量。
  * 相机光轴取 **-Z_device**（屏幕朝里），上方向取 **+Y_device**（屏幕向上）。
  */
-class AccelOnlyOrientationProvider(
+class RotationVectorCameraProvider(
 	context: Context,
-	private val orbitRadius: Float = StaticCameraViewProvider.DEFAULT_ORBIT_RADIUS
+	private val orbitRadius: Float = 4.8f
 ) : CameraViewProvider {
 
 	private val appContext = context.applicationContext
@@ -35,27 +35,10 @@ class AccelOnlyOrientationProvider(
 	private val rotationMatrix = FloatArray(16)
 	// 偏移矩阵
 	private val biasMatrix = FloatArray(16)
-	// 方位角/俯仰角/弧度
-	private val orientationAngles = FloatArray(3)
 	private val noAzimuthAngles = FloatArray(3)
 	private val noAzimuthRotation = FloatArray(16)
-	// 存在加速度数据
-	private var hasGravitySample = false
-	// 存在磁力数据
-	private var hasMagSample = false
 
 	private var isFirstFrame = true
-
-	private val PITCH_LEVELS = floatArrayOf(
-		1.0f,
-		0.5f,
-		0.0f,
-		-0.5f,
-		-1.0f
-	)
-	private val HYSTERESIS = 0.15f
-	private var currentLevelIndex = 2
-	private var onLevelChanged: (() -> Unit)? = null
 
 	private val listener = object : SensorEventListener {
 		override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
@@ -78,15 +61,6 @@ class AccelOnlyOrientationProvider(
 			// 初始视角
 			Matrix.invertM(biasMatrix, 0, rotationMatrix, 0)
 		}
-		// rotationMatrix 经过SensorManager.getRotationMatrixFromVector处理 由旋转矢量传感器的向量转换过来
-		// 解析出 方位角/俯仰角/横滚
-		SensorManager.getOrientation(rotationMatrix, orientationAngles)
-		val rawPitch = orientationAngles[1]
-		val oldLevel = currentLevelIndex
-		updatePitchLevel(rawPitch)
-		if (currentLevelIndex != oldLevel) {
-			onLevelChanged?.invoke()
-		}
 	}
 
 	fun onAttachedToWindow() {
@@ -102,8 +76,6 @@ class AccelOnlyOrientationProvider(
 	fun onDetachedFromWindow() {
 		sensorManager.unregisterListener(listener)
 		isFirstFrame = true
-		hasGravitySample = false
-		hasMagSample = false
 	}
 
 	/**
@@ -111,7 +83,7 @@ class AccelOnlyOrientationProvider(
 	 * 光轴 = -Z_device，上方向 = +Y_device。
 	 */
 	override fun getCameraFrame(eyeOut: FloatArray, forwardOut: FloatArray, upOut: FloatArray) {
-
+		// finalRotation = rotationMatrix * biasMatrix
 		val finalRotation = FloatArray(16)
 		Matrix.multiplyMM(finalRotation, 0, rotationMatrix, 0, biasMatrix, 0)
 		SensorManager.getOrientation(finalRotation, noAzimuthAngles)
@@ -142,27 +114,5 @@ class AccelOnlyOrientationProvider(
 		eyeOut[0] = -forwardX * orbitRadius
 		eyeOut[1] = -forwardY * orbitRadius
 		eyeOut[2] = -forwardZ * orbitRadius
-	}
-
-	private fun updatePitchLevel(rawPitch: Float) {
-		val currentLevel = PITCH_LEVELS[currentLevelIndex]
-
-		if (currentLevelIndex > 0) {
-			val upperLevel = PITCH_LEVELS[currentLevelIndex - 1]
-			val upperThreshold = (currentLevel + upperLevel) / 2 + HYSTERESIS
-			if (rawPitch > upperThreshold) {
-				currentLevelIndex--
-				return
-			}
-		}
-
-		if (currentLevelIndex < PITCH_LEVELS.size - 1) {
-			val lowerLevel = PITCH_LEVELS[currentLevelIndex + 1]
-			val lowerThreshold = (currentLevel + lowerLevel) / 2 - HYSTERESIS
-			if (rawPitch < lowerThreshold) {
-				currentLevelIndex++
-				return
-			}
-		}
 	}
 }

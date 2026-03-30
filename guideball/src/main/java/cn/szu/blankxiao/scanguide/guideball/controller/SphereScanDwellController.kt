@@ -1,4 +1,7 @@
-package cn.szu.blankxiao.scanguide.guideball.domain
+package cn.szu.blankxiao.scanguide.guideball.controller
+
+import cn.szu.blankxiao.scanguide.guideball.domain.SphereScanState
+import kotlin.math.abs
 
 /**
  * 扫描停留控制器
@@ -64,31 +67,6 @@ class SphereScanDwellController(
         }
     }
 
-    /**
-     * 获取当前进度 (0.0 ~ 1.0)
-     */
-    fun getProgress(): Float = scanState.collectingProgress
-
-    /**
-     * 是否正在停留
-     */
-    fun isDwelling(): Boolean = scanState.collectingIndex >= 0
-
-    /**
-     * 获取当前聚焦点索引
-     */
-    fun getFocusedIndex(): Int = focusedIndex
-
-    /**
-     * 重置控制器
-     */
-    fun reset() {
-        focusedIndex = -1
-        dwellStartTime = 0L
-        lastSampleTime = 0L
-        scanState.updateCollecting(-1, 0f)
-    }
-
     private fun isInEffectiveRange(baseIndex: Int, currentIndex: Int): Boolean {
         if (baseIndex < 0 || currentIndex < 0) return false
         val cols = scanState.getGridCols()
@@ -97,8 +75,8 @@ class SphereScanDwellController(
         val baseCol = baseIndex % cols
         val currentRow = currentIndex / cols
         val currentCol = currentIndex % cols
-        val rowDelta = kotlin.math.abs(baseRow - currentRow)
-        val rawColDelta = kotlin.math.abs(baseCol - currentCol)
+        val rowDelta = abs(baseRow - currentRow)
+        val rawColDelta = abs(baseCol - currentCol)
         val colDelta = minOf(rawColDelta, cols - rawColDelta)
         if (baseRow !in 0 until rows || currentRow !in 0 until rows) return false
         // 圆形有效范围：网格平面距离落在半径内才连续计时

@@ -2,6 +2,7 @@ package cn.szu.blankxiao.scanguide
 
 import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -71,12 +72,13 @@ class MainActivity : ComponentActivity() {
 private fun CameraPreviewContent(modifier: Modifier = Modifier) {
 	val context = LocalContext.current
 	val lifecycleOwner = LocalLifecycleOwner.current
+	// 权限校验
 	var hasCameraPermission by remember {
 		mutableStateOf(
 			ContextCompat.checkSelfPermission(
 				context,
 				Manifest.permission.CAMERA
-			) == android.content.pm.PackageManager.PERMISSION_GRANTED
+			) == PackageManager.PERMISSION_GRANTED
 		)
 	}
 	val permissionLauncher = rememberLauncherForActivityResult(

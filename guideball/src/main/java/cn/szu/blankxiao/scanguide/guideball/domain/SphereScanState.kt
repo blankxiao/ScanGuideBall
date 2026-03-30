@@ -1,5 +1,7 @@
 package cn.szu.blankxiao.scanguide.guideball.domain
 
+import cn.szu.blankxiao.scanguide.guideball.cg.egl.GuideBallConfig
+
 /**
  * 球面扫描状态管理
  * 管理扫描点的收集和完整性计算
@@ -7,10 +9,11 @@ package cn.szu.blankxiao.scanguide.guideball.domain
 class SphereScanState(
     private val onCompletenessChanged: ((Float) -> Unit)? = null
 ) {
-    private val gridCols = 18
-    private val gridRows = 16
-    private val totalPointCount = gridCols * gridRows
+    private val gridCols = GuideBallConfig.GRID_COLS
+    private val gridRows = GuideBallConfig.GRID_ROWS
+    private val totalPointCount = GuideBallConfig.TOTAL_POINT_COUNT
     private val targetPointCount = totalPointCount
+
     private val collectedMask = FloatArray(totalPointCount)
 
     // 是否暂停扫描
@@ -67,16 +70,6 @@ class SphereScanState(
     }
 
     /**
-     * 重置扫描状态
-     */
-    fun reset() {
-        collectedMask.fill(0f)
-        collectingIndex = -1
-        collectingProgress = 0f
-        updateCompleteness()
-    }
-
-    /**
      * 获取已扫描的点数
      */
     fun getScannedCount(): Int = collectedMask.count { it >= 0.5f }
@@ -113,6 +106,9 @@ class SphereScanState(
         onCompletenessChanged?.invoke(completeness)
     }
 
+    /**
+     *
+     */
     private fun markCollectedRange(centerIndex: Int, radius: Int) {
         val centerRow = centerIndex / gridCols
         val centerCol = centerIndex % gridCols

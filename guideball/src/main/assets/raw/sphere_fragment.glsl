@@ -7,7 +7,6 @@ uniform int u_collectingIndex;
 uniform float u_collectProgress;
 varying vec3 v_nWorld;
 varying vec3 v_worldPos;
-varying vec3 v_viewDir;
 
 const float PI = 3.14159265;
 const float TWO_PI = 6.28318530;
@@ -22,7 +21,6 @@ vec3 sphericalToCartesian(float lon, float lat) {
     );
 }
 
-// O(1) 量化到最近网格点，避免每像素遍历全网格
 void quantizeNearestGridPoint(vec3 normal, int cols, int rows, out vec3 nearestPoint, out int nearestIndex) {
     float lon = atan(normal.x, normal.z);
     if (lon < 0.0) lon += TWO_PI;

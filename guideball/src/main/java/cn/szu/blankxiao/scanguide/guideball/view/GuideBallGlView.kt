@@ -3,7 +3,7 @@ package cn.szu.blankxiao.scanguide.guideball.view
 import android.content.Context
 import android.view.TextureView
 import android.widget.FrameLayout
-import cn.szu.blankxiao.scanguide.guideball.camera.AccelOnlyOrientationProvider
+import cn.szu.blankxiao.scanguide.guideball.cg.camera.RotationVectorCameraProvider
 import cn.szu.blankxiao.scanguide.guideball.controller.GuideBallRotationController
 import cn.szu.blankxiao.scanguide.guideball.domain.SphereScanState
 import cn.szu.blankxiao.scanguide.guideball.helper.GuideBallSurfaceTextureCoordinator
@@ -25,18 +25,19 @@ class GuideBallGlView(
 
 	val scanState: SphereScanState = SphereScanState(onCompletenessChanged)
 
-	// 方向提供者（类似 MyPanorama 的 GyroOrientationProvider）
-	private val orientationProvider = AccelOnlyOrientationProvider(context)
+	// 方向提供者
+	private val orientationProvider = RotationVectorCameraProvider(context)
 
-	// 旋转控制器（类似 MyPanorama 的 RotationController）
+	// 旋转控制器
 	private val rotationController = GuideBallRotationController(orientationProvider)
 
-	// 渲染器（类似 MyPanorama 的 Renderer）
+	// 渲染器
 	private val renderer = SphereGuideRenderer(rotationController, scanState).apply {
 		setContext(context)
 	}
 
 	private val renderSession = GuideBallRenderSession(renderer)
+	// Surface的监听器
 	private val coordinator = GuideBallSurfaceTextureCoordinator(renderSession) {
 		if (scanState.isPaused()) {
 			renderSession.setRenderingPaused(true)

@@ -1,6 +1,6 @@
 package cn.szu.blankxiao.scanguide.guideball.controller
 
-import cn.szu.blankxiao.scanguide.guideball.camera.AccelOnlyOrientationProvider
+import cn.szu.blankxiao.scanguide.guideball.cg.camera.RotationVectorCameraProvider
 import cn.szu.blankxiao.scanguide.guideball.cg.GuideBallCamera
 
 /**
@@ -8,7 +8,7 @@ import cn.szu.blankxiao.scanguide.guideball.cg.GuideBallCamera
  * 负责将传感器数据应用到相机视图矩阵
  */
 class GuideBallRotationController(
-	private val orientationProvider: AccelOnlyOrientationProvider
+	private val orientationProvider: RotationVectorCameraProvider
 ) {
 
 	// 临时数组，避免每帧分配内存
