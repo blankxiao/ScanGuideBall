@@ -34,9 +34,8 @@ class RotationVectorCameraProvider(
 	// 旋转矩阵
 	private val rotationMatrix = FloatArray(16)
 	// 偏移矩阵
-	private val biasMatrix = FloatArray(16)
 	private val noAzimuthAngles = FloatArray(3)
-	private val noAzimuthRotation = FloatArray(16)
+	private val noRollDegRotation = FloatArray(16)
 
 	private var isFirstFrame = true
 
@@ -49,19 +48,11 @@ class RotationVectorCameraProvider(
 				Sensor.TYPE_ROTATION_VECTOR  -> {
 					// 将旋转矢量传感器转换为旋转矩阵
 					SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
-					onRotationMatrixUpdated()
 				}
 			}
 		}
 	}
 
-	private fun onRotationMatrixUpdated() {
-		if (isFirstFrame) {
-			isFirstFrame = false
-			// 初始视角
-			Matrix.invertM(biasMatrix, 0, rotationMatrix, 0)
-		}
-	}
 
 	fun onAttachedToWindow() {
 		when {
@@ -84,24 +75,23 @@ class RotationVectorCameraProvider(
 	 */
 	override fun getCameraFrame(eyeOut: FloatArray, forwardOut: FloatArray, upOut: FloatArray) {
 		// finalRotation = rotationMatrix * biasMatrix
-		val finalRotation = FloatArray(16)
-		Matrix.multiplyMM(finalRotation, 0, rotationMatrix, 0, biasMatrix, 0)
-		SensorManager.getOrientation(finalRotation, noAzimuthAngles)
+		SensorManager.getOrientation(rotationMatrix, noAzimuthAngles)
 
-		// 方案2：欧拉角分解后清零方位角，再按 Z(0) -> X(pitch) -> Y(roll) 重组。
+		val azimuth = Math.toDegrees(noAzimuthAngles[0].toDouble()).toFloat()
 		val pitchDeg = Math.toDegrees(noAzimuthAngles[1].toDouble()).toFloat()
 		val rollDeg = Math.toDegrees(noAzimuthAngles[2].toDouble()).toFloat()
-		Matrix.setIdentityM(noAzimuthRotation, 0)
-		Matrix.rotateM(noAzimuthRotation, 0, pitchDeg, 1f, 0f, 0f)
-		Matrix.rotateM(noAzimuthRotation, 0, rollDeg, 0f, 1f, 0f)
 
-		val forwardX = -noAzimuthRotation[2]
-		val forwardY = -noAzimuthRotation[6]
-		val forwardZ = -noAzimuthRotation[10]
+		Matrix.setIdentityM(noRollDegRotation, 0)
+		Matrix.rotateM(noRollDegRotation, 0, azimuth, 0f, 1f, 0f)
+		Matrix.rotateM(noRollDegRotation, 0, 90f - pitchDeg, 1f, 0f, 0f)
 
-		val upX = noAzimuthRotation[1]
-		val upY = noAzimuthRotation[5]
-		val upZ = noAzimuthRotation[9]
+		val forwardX = -noRollDegRotation[8]
+		val forwardY = -noRollDegRotation[9]
+		val forwardZ = -noRollDegRotation[10]
+
+		val upX = noRollDegRotation[4]
+		val upY = noRollDegRotation[5]
+		val upZ = noRollDegRotation[6]
 
 		forwardOut[0] = forwardX
 		forwardOut[1] = forwardY

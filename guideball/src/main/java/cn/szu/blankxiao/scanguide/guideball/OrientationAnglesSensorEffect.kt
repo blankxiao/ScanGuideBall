@@ -93,11 +93,11 @@ internal fun OrientationAnglesSensorEffect(
 								if (deltaDeg > thr) {
 									if (!azimuthToastLatched) {
 										azimuthToastLatched = true
-										Toast.makeText(
-											appContext,
-											R.string.guideball_azimuth_exceeds_hint,
-											Toast.LENGTH_SHORT
-										).show()
+										// Toast.makeText(
+										// 	appContext,
+										// 	R.string.guideball_azimuth_exceeds_hint,
+										// 	Toast.LENGTH_SHORT
+										// ).show()
 									}
 								} else if (deltaDeg < clear) {
 									azimuthToastLatched = false
